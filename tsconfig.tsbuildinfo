@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/protectedroute.tsx","./src/components/searchbar.tsx","./src/components/studentlist.tsx","./src/components/studentregistrationform.tsx","./src/context/authcontext.tsx","./src/lib/supabaseclient.ts","./src/pages/admindashboard.tsx","./src/pages/login.tsx","./src/types/index.ts"],"version":"5.9.3"}
