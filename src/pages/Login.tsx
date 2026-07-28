@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import logo from '../assets/logo.jpg'
+import logo from '../assets/logo.png'
 
 export function Login() {
   const { signIn, session, loading } = useAuth()
