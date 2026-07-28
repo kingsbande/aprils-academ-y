@@ -2,13 +2,25 @@ import { FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { ClassRoom, NewStudentInput } from '../types'
 
+function defaultAcademicYear() {
+  return String(new Date().getFullYear())
+}
+
 const emptyForm: NewStudentInput = {
   full_name: '',
   date_of_birth: '',
+  age: '',
   gender: 'male',
   class_id: '',
   parent_name: '',
   parent_phone: '',
+  parent_occupation: '',
+  health_notes: '',
+  former_school: '',
+  pickup_person: '',
+  location: '',
+  address: '',
+  academic_year: defaultAcademicYear(),
 }
 
 interface StudentRegistrationFormProps {
@@ -52,7 +64,11 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
 
     const { data: inserted, error: insertError } = await supabase
       .from('students')
-      .insert({ ...form, admission_number })
+      .insert({
+        ...form,
+        admission_number,
+        age: form.age === '' ? null : form.age,
+      })
       .select('id, admission_number, full_name')
       .single()
 
@@ -81,7 +97,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
 
     setSubmitting(false)
     setSuccessMessage(`${inserted.full_name} registered (Adm No: ${inserted.admission_number}). Notifying parent and admin...`)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, academic_year: defaultAcademicYear() })
     onRegistered()
   }
 
@@ -107,6 +123,18 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
             required
             value={form.date_of_birth}
             onChange={(e) => updateField('date_of_birth', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Age</label>
+          <input
+            type="number"
+            min={0}
+            max={25}
+            value={form.age}
+            onChange={(e) => updateField('age', e.target.value === '' ? '' : Number(e.target.value))}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
           />
         </div>
@@ -143,6 +171,27 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700">Academic Year</label>
+          <input
+            required
+            value={form.academic_year}
+            onChange={(e) => updateField('academic_year', e.target.value)}
+            placeholder="2026"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Former School</label>
+          <input
+            value={form.former_school}
+            onChange={(e) => updateField('former_school', e.target.value)}
+            placeholder="Leave blank if none"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700">Parent/Guardian Name</label>
           <input
             required
@@ -160,6 +209,59 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
             placeholder="+265..."
             value={form.parent_phone}
             onChange={(e) => updateField('parent_phone', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Parent/Guardian Occupation</label>
+          <input
+            value={form.parent_occupation}
+            onChange={(e) => updateField('parent_occupation', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Authorized Pickup Person</label>
+          <input
+            value={form.pickup_person}
+            onChange={(e) => updateField('pickup_person', e.target.value)}
+            placeholder="If different from parent/guardian"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Location (Village/Township)</label>
+          <input
+            value={form.location}
+            onChange={(e) => updateField('location', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Full Address</label>
+          <textarea
+            value={form.address}
+            onChange={(e) => updateField('address', e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Sickness / Disease / Allergies
+          </label>
+          <textarea
+            value={form.health_notes}
+            onChange={(e) => updateField('health_notes', e.target.value)}
+            rows={2}
+            placeholder="Leave blank if none"
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
           />
         </div>

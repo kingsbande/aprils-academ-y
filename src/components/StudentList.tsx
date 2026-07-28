@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { ClassRoom, Student } from '../types'
 import { SearchBar } from './SearchBar'
@@ -12,9 +12,17 @@ interface StudentRow {
   admission_number: string
   full_name: string
   date_of_birth: string
+  age: number | null
   gender: 'male' | 'female'
   parent_name: string
   parent_phone: string
+  parent_occupation: string | null
+  health_notes: string | null
+  former_school: string | null
+  pickup_person: string | null
+  location: string | null
+  address: string | null
+  academic_year: string
   created_at: string
   classes: { name: string } | null
 }
@@ -25,6 +33,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
   const [selectedClassId, setSelectedClassId] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -44,7 +53,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
     supabase
       .from('students')
       .select(
-        'id, admission_number, full_name, date_of_birth, gender, parent_name, parent_phone, created_at, classes ( name )',
+        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, created_at, classes ( name )',
       )
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -56,11 +65,19 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               admission_number: row.admission_number,
               full_name: row.full_name,
               date_of_birth: row.date_of_birth,
+              age: row.age,
               gender: row.gender,
               class_id: '',
               class_name: row.classes?.name ?? 'Unassigned',
               parent_name: row.parent_name,
               parent_phone: row.parent_phone,
+              parent_occupation: row.parent_occupation,
+              health_notes: row.health_notes,
+              former_school: row.former_school,
+              pickup_person: row.pickup_person,
+              location: row.location,
+              address: row.address,
+              academic_year: row.academic_year,
               created_at: row.created_at,
             })),
           )
@@ -113,21 +130,68 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
                 <th className="py-2 pr-4">Adm No.</th>
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Class</th>
+                <th className="py-2 pr-4">Age</th>
                 <th className="py-2 pr-4">Gender</th>
                 <th className="py-2 pr-4">Parent</th>
                 <th className="py-2 pr-4">Parent Phone</th>
+                <th className="py-2 pr-4">Year</th>
+                <th className="py-2 pr-4"></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-gray-100">
-                  <td className="py-2 pr-4">{s.admission_number}</td>
-                  <td className="py-2 pr-4">{s.full_name}</td>
-                  <td className="py-2 pr-4">{s.class_name}</td>
-                  <td className="py-2 pr-4 capitalize">{s.gender}</td>
-                  <td className="py-2 pr-4">{s.parent_name}</td>
-                  <td className="py-2 pr-4">{s.parent_phone}</td>
-                </tr>
+                <Fragment key={s.id}>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-2 pr-4">{s.admission_number}</td>
+                    <td className="py-2 pr-4">{s.full_name}</td>
+                    <td className="py-2 pr-4">{s.class_name}</td>
+                    <td className="py-2 pr-4">{s.age ?? '-'}</td>
+                    <td className="py-2 pr-4 capitalize">{s.gender}</td>
+                    <td className="py-2 pr-4">{s.parent_name}</td>
+                    <td className="py-2 pr-4">{s.parent_phone}</td>
+                    <td className="py-2 pr-4">{s.academic_year}</td>
+                    <td className="py-2 pr-4">
+                      <button
+                        onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
+                        className="text-xs font-medium text-gray-500 underline hover:text-gray-900"
+                      >
+                        {expandedId === s.id ? 'Hide' : 'Details'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedId === s.id && (
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <td colSpan={9} className="px-4 py-3">
+                        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-xs text-gray-700 sm:grid-cols-3">
+                          <div>
+                            <dt className="font-medium text-gray-500">Former School</dt>
+                            <dd>{s.former_school || '—'}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-gray-500">Parent Occupation</dt>
+                            <dd>{s.parent_occupation || '—'}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-gray-500">Authorized Pickup</dt>
+                            <dd>{s.pickup_person || '—'}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-gray-500">Location</dt>
+                            <dd>{s.location || '—'}</dd>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <dt className="font-medium text-gray-500">Address</dt>
+                            <dd>{s.address || '—'}</dd>
+                          </div>
+                          <div className="sm:col-span-3">
+                            <dt className="font-medium text-gray-500">Sickness / Disease / Allergies</dt>
+                            <dd>{s.health_notes || '—'}</dd>
+                          </div>
+                        </dl>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
