@@ -4,6 +4,7 @@ export interface Profile {
   id: string
   full_name: string
   role: UserRole
+  school_id: string
 }
 
 export interface ClassRoom {

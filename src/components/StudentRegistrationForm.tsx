@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../context/AuthContext'
 import { ClassRoom, NewStudentInput } from '../types'
 
 function defaultAcademicYear() {
@@ -28,6 +29,7 @@ interface StudentRegistrationFormProps {
 }
 
 export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFormProps) {
+  const { profile } = useAuth()
   const [classes, setClasses] = useState<ClassRoom[]>([])
   const [form, setForm] = useState<NewStudentInput>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
@@ -60,6 +62,12 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
     setSuccessMessage(null)
     setSubmitting(true)
 
+    if (!profile) {
+      setSubmitting(false)
+      setError('Could not determine your school. Please sign in again.')
+      return
+    }
+
     const admission_number = generateAdmissionNumber()
 
     const { data: inserted, error: insertError } = await supabase
@@ -68,6 +76,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
         ...form,
         admission_number,
         age: form.age === '' ? null : form.age,
+        school_id: profile.school_id,
       })
       .select('id, admission_number, full_name')
       .single()
