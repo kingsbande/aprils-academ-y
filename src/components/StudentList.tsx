@@ -23,6 +23,7 @@ interface StudentRow {
   location: string | null
   address: string | null
   academic_year: string
+  date_joined: string
   created_at: string
   classes: { name: string } | null
 }
@@ -34,6 +35,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [dateJoinedFilter, setDateJoinedFilter] = useState('')
 
   useEffect(() => {
     supabase
@@ -53,7 +55,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
     supabase
       .from('students')
       .select(
-        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, created_at, classes ( name )',
+        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, date_joined, created_at, classes ( name )',
       )
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -78,6 +80,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               location: row.location,
               address: row.address,
               academic_year: row.academic_year,
+              date_joined: row.date_joined,
               created_at: row.created_at,
             })),
           )
@@ -93,9 +96,10 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
       const q = search.trim().toLowerCase()
       const matchesSearch =
         q === '' || s.full_name.toLowerCase().includes(q) || s.admission_number.toLowerCase().includes(q)
-      return matchesClass && matchesSearch
+      const matchesDate = dateJoinedFilter === '' || s.date_joined >= dateJoinedFilter
+      return matchesClass && matchesSearch && matchesDate
     })
-  }, [students, selectedClassId, search, classes])
+  }, [students, selectedClassId, search, classes, dateJoinedFilter])
 
   return (
     <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6">
@@ -115,6 +119,21 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               </option>
             ))}
           </select>
+          <input
+            type="date"
+            value={dateJoinedFilter}
+            onChange={(e) => setDateJoinedFilter(e.target.value)}
+            title="Show students who joined on or after this date"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+          {dateJoinedFilter && (
+            <button
+              onClick={() => setDateJoinedFilter('')}
+              className="text-xs font-medium text-gray-500 underline hover:text-gray-900"
+            >
+              Clear date
+            </button>
+          )}
         </div>
       </div>
 
@@ -135,6 +154,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
                 <th className="py-2 pr-4">Parent</th>
                 <th className="py-2 pr-4">Parent Phone</th>
                 <th className="py-2 pr-4">Year</th>
+                <th className="py-2 pr-4">Joined</th>
                 <th className="py-2 pr-4"></th>
               </tr>
             </thead>
@@ -150,6 +170,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
                     <td className="py-2 pr-4">{s.parent_name}</td>
                     <td className="py-2 pr-4">{s.parent_phone}</td>
                     <td className="py-2 pr-4">{s.academic_year}</td>
+                    <td className="py-2 pr-4">{s.date_joined}</td>
                     <td className="py-2 pr-4">
                       <button
                         onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
@@ -161,7 +182,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
                   </tr>
                   {expandedId === s.id && (
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      <td colSpan={9} className="px-4 py-3">
+                      <td colSpan={10} className="px-4 py-3">
                         <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-xs text-gray-700 sm:grid-cols-3">
                           <div>
                             <dt className="font-medium text-gray-500">Former School</dt>

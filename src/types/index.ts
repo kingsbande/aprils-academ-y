@@ -5,6 +5,7 @@ export interface Profile {
   full_name: string
   role: UserRole
   school_id: string
+  school_name: string
 }
 
 export interface ClassRoom {
@@ -30,6 +31,7 @@ export interface Student {
   location: string | null
   address: string | null
   academic_year: string
+  date_joined: string
   created_at: string
 }
 
@@ -48,4 +50,5 @@ export interface NewStudentInput {
   location: string
   address: string
   academic_year: string
+  date_joined: string
 }

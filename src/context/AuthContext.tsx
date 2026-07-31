@@ -21,12 +21,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, school_id')
+      .select('id, full_name, role, school_id, schools ( name )')
       .eq('id', userId)
       .single()
 
     if (!error && data) {
-      setProfile(data as Profile)
+      const row = data as unknown as {
+        id: string
+        full_name: string
+        role: Profile['role']
+        school_id: string
+        schools: { name: string } | null
+      }
+      setProfile({
+        id: row.id,
+        full_name: row.full_name,
+        role: row.role,
+        school_id: row.school_id,
+        school_name: row.schools?.name ?? 'your school',
+      })
     } else {
       setProfile(null)
     }
@@ -36,10 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       if (data.session) {
-        setLoading(true)
         loadProfile(data.session.user.id).finally(() => setLoading(false))
       } else {
-        setProfile(null)
         setLoading(false)
       }
     })
@@ -47,11 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession)
       if (newSession) {
-        setLoading(true)
-        loadProfile(newSession.user.id).finally(() => setLoading(false))
+        loadProfile(newSession.user.id)
       } else {
         setProfile(null)
-        setLoading(false)
       }
     })
 
@@ -59,20 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function signIn(email: string, password: string) {
-    setLoading(true)
-    setProfile(null)
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (!error && data.session) {
-      setSession(data.session)
-      await loadProfile(data.session.user.id)
-    } else {
-      setSession(null)
-      setProfile(null)
-    }
-
-    setLoading(false)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error ? error.message : null }
   }
 
