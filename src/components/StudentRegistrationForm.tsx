@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import { supabase } from '../lib/supabaseClient'
+import { uploadStudentPhoto } from '../lib/cloudinary'
 import { useAuth } from '../context/AuthContext'
 import { ClassRoom, NewStudentInput } from '../types'
 
@@ -28,6 +29,8 @@ const emptyForm: NewStudentInput = {
   address: '',
   academic_year: defaultAcademicYear(),
   date_joined: defaultDateJoined(),
+  government_code: '',
+  photo_url: null,
 }
 
 interface StudentRegistrationFormProps {
@@ -43,6 +46,9 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   const [confirmation, setConfirmation] = useState<{ studentName: string; admissionNumber: string } | null>(
     null,
   )
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     supabase
@@ -56,6 +62,12 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
 
   function updateField<K extends keyof NewStudentInput>(key: K, value: NewStudentInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    setPhotoFile(file)
+    setPhotoPreview(file ? URL.createObjectURL(file) : null)
   }
 
   function generateAdmissionNumber() {
@@ -75,6 +87,20 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
       return
     }
 
+    let photo_url: string | null = null
+    if (photoFile) {
+      setUploadingPhoto(true)
+      try {
+        photo_url = await uploadStudentPhoto(photoFile)
+      } catch (uploadErr) {
+        setUploadingPhoto(false)
+        setSubmitting(false)
+        setError(uploadErr instanceof Error ? uploadErr.message : 'Photo upload failed.')
+        return
+      }
+      setUploadingPhoto(false)
+    }
+
     const admission_number = generateAdmissionNumber()
 
     const { data: inserted, error: insertError } = await supabase
@@ -84,6 +110,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
         admission_number,
         age: form.age === '' ? null : form.age,
         school_id: profile.school_id,
+        photo_url,
       })
       .select('id, admission_number, full_name')
       .single()
@@ -114,6 +141,8 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
     setSubmitting(false)
     setConfirmation({ studentName: inserted.full_name, admissionNumber: inserted.admission_number })
     setForm({ ...emptyForm, academic_year: defaultAcademicYear(), date_joined: defaultDateJoined() })
+    setPhotoFile(null)
+    setPhotoPreview(null)
     onRegistered()
   }
 
@@ -142,6 +171,26 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
     <>
       <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
       <h2 className="text-lg font-semibold text-gray-900">Register a Student</h2>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Student Photo</label>
+        <div className="mt-1 flex items-center gap-4">
+          {photoPreview && (
+            <img
+              src={photoPreview}
+              alt="Preview"
+              className="h-16 w-16 rounded-full object-cover border border-gray-200"
+            />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
+            className="block text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800"
+          />
+        </div>
+        {uploadingPhoto && <p className="mt-1 text-xs text-gray-500">Uploading photo...</p>}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
@@ -241,6 +290,16 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700">Government Code</label>
+          <input
+            value={form.government_code}
+            onChange={(e) => updateField('government_code', e.target.value)}
+            placeholder="Optional"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+          />
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700">Parent/Guardian Name</label>
           <input
             required
@@ -320,7 +379,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || uploadingPhoto}
         className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
       >
         {submitting ? 'Registering...' : 'Register Student'}

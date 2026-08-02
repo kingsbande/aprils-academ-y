@@ -32,6 +32,8 @@ export interface Student {
   address: string | null
   academic_year: string
   date_joined: string
+  government_code: string | null
+  photo_url: string | null
   created_at: string
 }
 
@@ -51,4 +53,6 @@ export interface NewStudentInput {
   address: string
   academic_year: string
   date_joined: string
+  government_code: string
+  photo_url: string | null
 }

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { ClassRoom, Student } from '../types'
 import { SearchBar } from './SearchBar'
+import { EditStudentForm } from './EditStudentForm'
 
 export interface StudentListHandle {
   refresh: () => void
@@ -24,6 +25,8 @@ interface StudentRow {
   address: string | null
   academic_year: string
   date_joined: string
+  government_code: string | null
+  photo_url: string | null
   created_at: string
   classes: { name: string } | null
 }
@@ -36,6 +39,8 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [dateJoinedFilter, setDateJoinedFilter] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -47,7 +52,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
       })
   }, [])
 
-  useEffect(() => {
+  function fetchStudents() {
     setLoading(true)
     // Sequential fetch pattern: fetch students, then resolve class name
     // via the joined relation rather than relying on ambiguous nested
@@ -55,7 +60,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
     supabase
       .from('students')
       .select(
-        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, date_joined, created_at, classes ( name )',
+        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, date_joined, government_code, photo_url, created_at, classes ( name )',
       )
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -81,13 +86,35 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               address: row.address,
               academic_year: row.academic_year,
               date_joined: row.date_joined,
+              government_code: row.government_code,
+              photo_url: row.photo_url,
               created_at: row.created_at,
             })),
           )
         }
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchStudents()
   }, [refreshKey])
+
+  async function handleDelete(id: string, name: string) {
+    const confirmed = window.confirm(`Delete ${name}'s record? This cannot be undone.`)
+    if (!confirmed) return
+
+    setDeletingId(id)
+    const { error } = await supabase.from('students').delete().eq('id', id)
+    setDeletingId(null)
+
+    if (error) {
+      window.alert(`Could not delete student: ${error.message}`)
+      return
+    }
+
+    fetchStudents()
+  }
 
   const filtered = useMemo(() => {
     return students.filter((s) => {
@@ -146,6 +173,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-gray-500">
+                <th className="py-2 pr-4">Photo</th>
                 <th className="py-2 pr-4">Adm No.</th>
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Class</th>
@@ -162,6 +190,15 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               {filtered.map((s) => (
                 <Fragment key={s.id}>
                   <tr className="border-b border-gray-100">
+                    <td className="py-2 pr-4">
+                      {s.photo_url ? (
+                        <img src={s.photo_url} alt={s.full_name} className="h-8 w-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs text-gray-400">
+                          {s.full_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2 pr-4">{s.admission_number}</td>
                     <td className="py-2 pr-4">{s.full_name}</td>
                     <td className="py-2 pr-4">{s.class_name}</td>
@@ -172,18 +209,58 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
                     <td className="py-2 pr-4">{s.academic_year}</td>
                     <td className="py-2 pr-4">{s.date_joined}</td>
                     <td className="py-2 pr-4">
-                      <button
-                        onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
-                        className="text-xs font-medium text-gray-500 underline hover:text-gray-900"
-                      >
-                        {expandedId === s.id ? 'Hide' : 'Details'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setExpandedId(expandedId === s.id ? null : s.id)
+                            setEditingId(null)
+                          }}
+                          className="text-xs font-medium text-gray-500 underline hover:text-gray-900"
+                        >
+                          {expandedId === s.id ? 'Hide' : 'Details'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingId(editingId === s.id ? null : s.id)
+                            setExpandedId(null)
+                          }}
+                          className="text-xs font-medium text-blue-600 underline hover:text-blue-800"
+                        >
+                          {editingId === s.id ? 'Cancel' : 'Edit'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s.id, s.full_name)}
+                          disabled={deletingId === s.id}
+                          className="text-xs font-medium text-red-600 underline hover:text-red-800 disabled:opacity-50"
+                        >
+                          {deletingId === s.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
+                  {editingId === s.id && (
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <td colSpan={11} className="px-4 py-3">
+                        <EditStudentForm
+                          student={s}
+                          classes={classes}
+                          onCancel={() => setEditingId(null)}
+                          onSaved={() => {
+                            setEditingId(null)
+                            fetchStudents()
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  )}
                   {expandedId === s.id && (
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      <td colSpan={10} className="px-4 py-3">
+                      <td colSpan={11} className="px-4 py-3">
                         <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-xs text-gray-700 sm:grid-cols-3">
+                          <div>
+                            <dt className="font-medium text-gray-500">Government Code</dt>
+                            <dd>{s.government_code || '—'}</dd>
+                          </div>
                           <div>
                             <dt className="font-medium text-gray-500">Former School</dt>
                             <dd>{s.former_school || '—'}</dd>
