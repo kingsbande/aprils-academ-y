@@ -27,6 +27,7 @@ interface StudentRow {
   date_joined: string
   government_code: string | null
   photo_url: string | null
+  parent_account_id: string | null
   created_at: string
   classes: { name: string } | null
 }
@@ -41,8 +42,6 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
   const [dateJoinedFilter, setDateJoinedFilter] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -62,7 +61,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
     supabase
       .from('students')
       .select(
-        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, date_joined, government_code, photo_url, created_at, classes ( name )',
+        'id, admission_number, full_name, date_of_birth, age, gender, parent_name, parent_phone, parent_occupation, health_notes, former_school, pickup_person, location, address, academic_year, date_joined, government_code, photo_url, parent_account_id, created_at, classes ( name )',
       )
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -90,6 +89,7 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               date_joined: row.date_joined,
               government_code: row.government_code,
               photo_url: row.photo_url,
+              parent_account_id: row.parent_account_id,
               created_at: row.created_at,
             })),
           )
@@ -102,24 +102,19 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
     fetchStudents()
   }, [refreshKey])
 
-  function handleDelete(id: string, name: string) {
-    setDeleteError(null)
-    setPendingDelete({ id, name })
-  }
+  async function handleDelete(id: string, name: string) {
+    const confirmed = window.confirm(`Delete ${name}'s record? This cannot be undone.`)
+    if (!confirmed) return
 
-  async function confirmDelete() {
-    if (!pendingDelete) return
-
-    setDeletingId(pendingDelete.id)
-    const { error } = await supabase.from('students').delete().eq('id', pendingDelete.id)
+    setDeletingId(id)
+    const { error } = await supabase.from('students').delete().eq('id', id)
     setDeletingId(null)
 
     if (error) {
-      setDeleteError(`Could not delete student: ${error.message}`)
+      window.alert(`Could not delete student: ${error.message}`)
       return
     }
 
-    setPendingDelete(null)
     fetchStudents()
   }
 
@@ -300,38 +295,6 @@ export function StudentList({ refreshKey }: { refreshKey: number }) {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {pendingDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Confirm delete</h3>
-            <p className="mt-3 text-sm text-gray-600">
-              Are you sure you want to delete <span className="font-semibold">{pendingDelete.name}</span>'s record? This action cannot be undone.
-            </p>
-            {deleteError && <p className="mt-3 text-sm text-red-600">{deleteError}</p>}
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingDelete(null)
-                  setDeleteError(null)
-                }}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deletingId === pendingDelete.id}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {deletingId === pendingDelete.id ? 'Deleting...' : 'Delete student'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
