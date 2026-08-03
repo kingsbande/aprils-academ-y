@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { ParentAccounts } from '../components/ParentAccounts'
 import { StudentRegistrationForm } from '../components/StudentRegistrationForm'
 import { StudentList } from '../components/StudentList'
 import { supabase } from '../lib/supabaseClient'
@@ -13,7 +14,7 @@ interface DashboardStats {
 export function AdminDashboard() {
   const { profile, signOut } = useAuth()
   const [refreshKey, setRefreshKey] = useState(0)
-  const [activeView, setActiveView] = useState<'overview' | 'register' | 'students'>('overview')
+  const [activeView, setActiveView] = useState<'overview' | 'register' | 'students' | 'parents'>('overview')
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     maleStudents: 0,
@@ -93,6 +94,15 @@ export function AdminDashboard() {
               <span>Student Records</span>
               <span className="text-xs">▣</span>
             </button>
+            <button
+              onClick={() => setActiveView('parents')}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                activeView === 'parents' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>Parent Accounts</span>
+              <span className="text-xs">👤</span>
+            </button>
           </nav>
         </aside>
 
@@ -141,6 +151,12 @@ export function AdminDashboard() {
                     >
                       View records
                     </button>
+                    <button
+                      onClick={() => setActiveView('parents')}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Manage parents
+                    </button>
                   </div>
                 </div>
               </div>
@@ -154,6 +170,8 @@ export function AdminDashboard() {
           )}
 
           {activeView === 'students' && <StudentList refreshKey={refreshKey} />}
+
+          {activeView === 'parents' && <ParentAccounts />}
         </section>
       </main>
     </div>

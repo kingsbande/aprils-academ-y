@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Login } from './pages/Login'
 import { AdminDashboard } from './pages/AdminDashboard'
+import { ParentAccounts } from './pages/ParentAccounts'
 
 export default function App() {
   return (
@@ -15,6 +16,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/parent-accounts"
+            element={
+              <ProtectedRoute>
+                <ParentAccounts />
               </ProtectedRoute>
             }
           />

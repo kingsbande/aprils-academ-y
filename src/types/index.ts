@@ -8,6 +8,17 @@ export interface Profile {
   school_name: string
 }
 
+export interface ParentAccount {
+  id: string
+  school_id: string
+  full_name: string
+  username: string
+  phone: string | null
+  is_active: boolean
+  must_change_password: boolean
+  created_at: string
+}
+
 export interface ClassRoom {
   id: string
   name: string // e.g. "Standard 1", "Form 2"
@@ -34,6 +45,7 @@ export interface Student {
   date_joined: string
   government_code: string | null
   photo_url: string | null
+  parent_account_id: string | null
   created_at: string
 }
 

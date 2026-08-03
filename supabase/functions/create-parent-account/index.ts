@@ -1,0 +1,170 @@
+// Supabase Edge Function: create-parent-account
+//
+// Given a student_id, this:
+//   1. Verifies the caller is an admin, and that the student belongs
+//      to the caller's own school (never lets an admin create an
+//      account using another school's student).
+//   2. Builds a username from the parent's name on that student's
+//      record (deduping against existing usernames in the school).
+//   3. Generates a temporary password.
+//   4. Creates the auth.users row via the admin API (email is a
+//      synthetic, never-emailed address — see migration 0006).
+//   5. Inserts the parent_accounts row and links it to the student.
+//
+// Returns { username, temporary_password } so the admin can relay
+// them to the parent directly (in person, by phone, on paper —
+// whatever the school already does).
+//
+// Deploy with: supabase functions deploy create-parent-account
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+function slugifyName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, '.')
+}
+
+function generateTempPassword(): string {
+  // Avoids visually ambiguous characters (0/O, 1/l/I) since this
+  // gets read aloud or copied down by hand.
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let pw = ''
+  for (let i = 0; i < 10; i++) {
+    pw += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return pw
+}
+
+async function getCallerAdminProfile(authHeader: string | null) {
+  if (!authHeader) return null
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  })
+  const {
+    data: { user },
+  } = await userClient.auth.getUser()
+  if (!user) return null
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('school_id, role, school_id, schools ( slug )')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || profile.role !== 'admin') return null
+  return profile as { school_id: string; role: string; schools: { slug: string } | null }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 })
+  }
+
+  const profile = await getCallerAdminProfile(req.headers.get('Authorization'))
+  if (!profile) {
+    return new Response(JSON.stringify({ error: 'Not authorized' }), { status: 401 })
+  }
+
+  let payload: { student_id?: string }
+  try {
+    payload = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+  }
+
+  if (!payload.student_id) {
+    return new Response(JSON.stringify({ error: 'student_id is required' }), { status: 400 })
+  }
+
+  const { data: student, error: studentError } = await supabaseAdmin
+    .from('students')
+    .select('id, full_name, parent_name, parent_phone, school_id, parent_account_id')
+    .eq('id', payload.student_id)
+    .single()
+
+  if (studentError || !student) {
+    return new Response(JSON.stringify({ error: 'Student not found' }), { status: 404 })
+  }
+
+  if (student.school_id !== profile.school_id) {
+    return new Response(JSON.stringify({ error: 'Student does not belong to your school' }), { status: 403 })
+  }
+
+  if (student.parent_account_id) {
+    return new Response(
+      JSON.stringify({ error: 'This student already has a linked parent account' }),
+      { status: 409 },
+    )
+  }
+
+  const schoolSlug = profile.schools?.slug ?? 'school'
+  const baseUsername = slugifyName(student.parent_name)
+
+  // Dedupe within the school: john.banda, john.banda2, john.banda3, ...
+  let username = baseUsername
+  let suffix = 1
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data: existing } = await supabaseAdmin
+      .from('parent_accounts')
+      .select('id')
+      .eq('school_id', profile.school_id)
+      .eq('username', username)
+      .maybeSingle()
+
+    if (!existing) break
+    suffix += 1
+    username = `${baseUsername}${suffix}`
+  }
+
+  const temporaryPassword = generateTempPassword()
+  const syntheticEmail = `${username}@parents.${schoolSlug}.app`
+
+  const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email: syntheticEmail,
+    password: temporaryPassword,
+    email_confirm: true,
+    user_metadata: { role: 'parent', full_name: student.parent_name },
+  })
+
+  if (createError || !created.user) {
+    return new Response(
+      JSON.stringify({ error: createError?.message ?? 'Could not create parent account' }),
+      { status: 500 },
+    )
+  }
+
+  const { error: insertError } = await supabaseAdmin.from('parent_accounts').insert({
+    id: created.user.id,
+    school_id: profile.school_id,
+    full_name: student.parent_name,
+    username,
+    phone: student.parent_phone,
+    must_change_password: true,
+  })
+
+  if (insertError) {
+    // Roll back the auth user so we don't leave an orphaned login
+    await supabaseAdmin.auth.admin.deleteUser(created.user.id)
+    return new Response(JSON.stringify({ error: insertError.message }), { status: 500 })
+  }
+
+  await supabaseAdmin
+    .from('students')
+    .update({ parent_account_id: created.user.id })
+    .eq('id', student.id)
+
+  return new Response(
+    JSON.stringify({ username, temporary_password: temporaryPassword }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )
+})
