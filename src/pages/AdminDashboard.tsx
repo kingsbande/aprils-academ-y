@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { ParentAccounts } from '../components/ParentAccounts'
+import { ParentAccounts } from '../pages/ParentAccounts'
 import { StudentRegistrationForm } from '../components/StudentRegistrationForm'
 import { StudentList } from '../components/StudentList'
 import { supabase } from '../lib/supabaseClient'
