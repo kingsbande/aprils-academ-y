@@ -48,12 +48,12 @@ export function Login() {
             />
           </div>
 
-          <h1 className="text-2xl font-semibold text-white">Admin Login</h1>
-          <p className="mt-1 text-sm text-slate-200">Sign in to manage student registration.</p>
+          <h1 className="text-2xl font-semibold text-white">April's Academy</h1>
+          <p className="mt-1 text-sm text-slate-200">Sign in to continue.</p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-left">
             <div>
-              <label className="block text-sm font-medium text-slate-200">Email</label>
+              <label className="block text-sm font-medium text-slate-200">Email/Username</label>
               <input
                 type="email"
                 required

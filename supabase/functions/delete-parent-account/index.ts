@@ -16,6 +16,19 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 async function getCallerAdminProfile(authHeader: string | null) {
   if (!authHeader) return null
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -37,24 +50,28 @@ async function getCallerAdminProfile(authHeader: string | null) {
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
+    return json({ error: 'Method not allowed' }, 405)
   }
 
   const profile = await getCallerAdminProfile(req.headers.get('Authorization'))
   if (!profile) {
-    return new Response(JSON.stringify({ error: 'Not authorized' }), { status: 401 })
+    return json({ error: 'Not authorized' }, 401)
   }
 
   let payload: { parent_account_id?: string }
   try {
     payload = await req.json()
   } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+    return json({ error: 'Invalid JSON body' }, 400)
   }
 
   if (!payload.parent_account_id) {
-    return new Response(JSON.stringify({ error: 'parent_account_id is required' }), { status: 400 })
+    return json({ error: 'parent_account_id is required' }, 400)
   }
 
   const { data: account, error: accountError } = await supabaseAdmin
@@ -64,13 +81,11 @@ Deno.serve(async (req: Request) => {
     .single()
 
   if (accountError || !account) {
-    return new Response(JSON.stringify({ error: 'Parent account not found' }), { status: 404 })
+    return json({ error: 'Parent account not found' }, 404)
   }
 
   if (account.school_id !== profile.school_id) {
-    return new Response(JSON.stringify({ error: 'This account does not belong to your school' }), {
-      status: 403,
-    })
+    return json({ error: 'This account does not belong to your school' }, 403)
   }
 
   // Delete the DB row first — if this fails we haven't destroyed the login yet.
@@ -80,16 +95,14 @@ Deno.serve(async (req: Request) => {
     .eq('id', account.id)
 
   if (deleteRowError) {
-    return new Response(JSON.stringify({ error: deleteRowError.message }), { status: 500 })
+    return json({ error: deleteRowError.message }, 500)
   }
 
   const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(account.id)
 
   if (deleteAuthError) {
-    return new Response(JSON.stringify({ error: deleteAuthError.message }), { status: 500 })
+    return json({ error: deleteAuthError.message }, 500)
   }
 
-  return new Response(JSON.stringify({ deleted: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  })
+  return json({ deleted: true })
 })

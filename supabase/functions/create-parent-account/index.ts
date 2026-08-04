@@ -25,6 +25,23 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
+// Browsers send an OPTIONS preflight before the real POST because the
+// request carries custom headers (Authorization, apikey). Without
+// these headers on every response (including the preflight itself),
+// the browser blocks the request before it ever reaches this code.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 function slugifyName(name: string): string {
   return name
     .trim()
@@ -56,7 +73,7 @@ async function getCallerAdminProfile(authHeader: string | null) {
 
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('school_id, role, school_id, schools ( slug )')
+    .select('school_id, role, schools ( slug )')
     .eq('id', user.id)
     .single()
 
@@ -65,24 +82,28 @@ async function getCallerAdminProfile(authHeader: string | null) {
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
+    return json({ error: 'Method not allowed' }, 405)
   }
 
   const profile = await getCallerAdminProfile(req.headers.get('Authorization'))
   if (!profile) {
-    return new Response(JSON.stringify({ error: 'Not authorized' }), { status: 401 })
+    return json({ error: 'Not authorized' }, 401)
   }
 
   let payload: { student_id?: string }
   try {
     payload = await req.json()
   } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+    return json({ error: 'Invalid JSON body' }, 400)
   }
 
   if (!payload.student_id) {
-    return new Response(JSON.stringify({ error: 'student_id is required' }), { status: 400 })
+    return json({ error: 'student_id is required' }, 400)
   }
 
   const { data: student, error: studentError } = await supabaseAdmin
@@ -92,18 +113,15 @@ Deno.serve(async (req: Request) => {
     .single()
 
   if (studentError || !student) {
-    return new Response(JSON.stringify({ error: 'Student not found' }), { status: 404 })
+    return json({ error: 'Student not found' }, 404)
   }
 
   if (student.school_id !== profile.school_id) {
-    return new Response(JSON.stringify({ error: 'Student does not belong to your school' }), { status: 403 })
+    return json({ error: 'Student does not belong to your school' }, 403)
   }
 
   if (student.parent_account_id) {
-    return new Response(
-      JSON.stringify({ error: 'This student already has a linked parent account' }),
-      { status: 409 },
-    )
+    return json({ error: 'This student already has a linked parent account' }, 409)
   }
 
   const schoolSlug = profile.schools?.slug ?? 'school'
@@ -137,10 +155,7 @@ Deno.serve(async (req: Request) => {
   })
 
   if (createError || !created.user) {
-    return new Response(
-      JSON.stringify({ error: createError?.message ?? 'Could not create parent account' }),
-      { status: 500 },
-    )
+    return json({ error: createError?.message ?? 'Could not create parent account' }, 500)
   }
 
   const { error: insertError } = await supabaseAdmin.from('parent_accounts').insert({
@@ -155,7 +170,7 @@ Deno.serve(async (req: Request) => {
   if (insertError) {
     // Roll back the auth user so we don't leave an orphaned login
     await supabaseAdmin.auth.admin.deleteUser(created.user.id)
-    return new Response(JSON.stringify({ error: insertError.message }), { status: 500 })
+    return json({ error: insertError.message }, 500)
   }
 
   await supabaseAdmin
@@ -163,8 +178,5 @@ Deno.serve(async (req: Request) => {
     .update({ parent_account_id: created.user.id })
     .eq('id', student.id)
 
-  return new Response(
-    JSON.stringify({ username, temporary_password: temporaryPassword }),
-    { headers: { 'Content-Type': 'application/json' } },
-  )
+  return json({ username, temporary_password: temporaryPassword })
 })
