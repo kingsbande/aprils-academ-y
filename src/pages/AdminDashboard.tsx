@@ -5,10 +5,12 @@ import {
   BookOpen,
   LayoutDashboard,
   LogOut,
+  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { ParentAccounts } from '../pages/ParentAccounts'
@@ -46,6 +48,7 @@ export function AdminDashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeView, setActiveView] = useState<View>('overview')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     maleStudents: 0,
@@ -70,6 +73,29 @@ export function AdminDashboard() {
       })
   }, [refreshKey])
 
+  // Lock body scroll while the off-canvas menu is open on mobile
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isMobileMenuOpen])
+
+  // Close the mobile drawer automatically if the viewport grows into the
+  // desktop breakpoint while it's open (e.g. rotating a tablet)
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)')
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsMobileMenuOpen(false)
+    }
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
   const { malePct, femalePct } = useMemo(() => {
     const total = stats.totalStudents
     if (!total) return { malePct: 0, femalePct: 0 }
@@ -88,6 +114,11 @@ export function AdminDashboard() {
     return 'Good evening'
   }, [])
 
+  function handleNavSelect(id: View) {
+    setActiveView(id)
+    setIsMobileMenuOpen(false)
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Top bar */}
@@ -95,11 +126,24 @@ export function AdminDashboard() {
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-start">
             <div className="flex items-center gap-3">
+              {/* Mobile: opens the off-canvas drawer */}
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open navigation menu"
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="admin-sidebar"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+
+              {/* Desktop: collapses the static sidebar to icon-only */}
               <button
                 type="button"
                 onClick={() => setIsSidebarCollapsed((value) => !value)}
                 aria-label={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:flex"
               >
                 {isSidebarCollapsed ? (
                   <PanelLeftOpen className="h-4 w-4" />
@@ -156,33 +200,59 @@ export function AdminDashboard() {
       </header>
 
       <main className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-3 py-4 sm:gap-6 sm:px-4 lg:flex-row lg:px-8">
-        {/* Sidebar */}
+        {/* Backdrop, mobile only */}
+        {isMobileMenuOpen && (
+          <div
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+            className="fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm lg:hidden"
+          />
+        )}
+
+        {/* Sidebar: fixed off-canvas drawer on mobile, static + collapsible on desktop */}
         <aside
-          className={`w-full rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 sm:p-4 lg:w-72 ${
-            isSidebarCollapsed ? 'lg:w-24' : 'lg:w-72'
-          }`}
+          id="admin-sidebar"
+          className={`fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] overflow-y-auto rounded-none border-r border-slate-200 bg-white p-3 shadow-2xl transition-transform duration-300 ease-in-out sm:p-4 lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:rounded-2xl lg:border lg:shadow-sm ${
+            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          } ${isSidebarCollapsed ? 'lg:w-24' : 'lg:w-72'}`}
         >
           <div className="flex items-center justify-between px-2 pb-3 sm:pb-4">
-            <p className={`text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 ${isSidebarCollapsed ? 'hidden lg:block' : ''}`}>
+            <p
+              className={`text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 ${
+                isSidebarCollapsed ? 'lg:hidden' : ''
+              }`}
+            >
               Menu
             </p>
-            {!isSidebarCollapsed && (
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Quick links
-              </span>
-            )}
+            <span
+              className={`text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 ${
+                isSidebarCollapsed ? 'lg:hidden' : ''
+              }`}
+            >
+              Quick links
+            </span>
+
+            {/* Close button, mobile only */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(false)}
+              aria-label="Close navigation menu"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          <nav className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
+          <nav className="flex flex-col gap-1">
             {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
               const isActive = activeView === id
               return (
                 <button
                   key={id}
-                  onClick={() => setActiveView(id)}
+                  onClick={() => handleNavSelect(id)}
                   aria-current={isActive ? 'page' : undefined}
                   title={label}
-                  className={`group relative flex min-h-11 flex-none items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:w-full lg:justify-center lg:px-2 lg:py-3 ${
+                  className={`group relative flex min-h-11 items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:justify-center lg:px-2 lg:py-3 ${
                     isActive
                       ? 'bg-rose-50 text-rose-700'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -194,16 +264,18 @@ export function AdminDashboard() {
                     }`}
                   />
                   <Icon
-                    className={`h-4 w-4 ${isActive ? 'text-rose-600' : 'text-slate-400 group-hover:text-slate-500'}`}
+                    className={`h-4 w-4 flex-none ${isActive ? 'text-rose-600' : 'text-slate-400 group-hover:text-slate-500'}`}
                   />
-                  <span className={`${isSidebarCollapsed ? 'hidden' : 'block'}`}>{label}</span>
+                  <span className={`block ${isSidebarCollapsed ? 'lg:hidden' : 'lg:block'}`}>
+                    {label}
+                  </span>
                 </button>
               )
             })}
           </nav>
         </aside>
 
-        <section className="flex-1 space-y-4 sm:space-y-6">
+        <section className="w-full flex-1 space-y-4 sm:space-y-6">
           {activeView === 'overview' && (
             <>
               {/* Hero */}
@@ -315,7 +387,7 @@ export function AdminDashboard() {
                       Jump straight into registration or review the student list.
                     </p>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                     <button
                       onClick={() => setActiveView('register')}
                       className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
