@@ -124,10 +124,12 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'This student already has a linked parent account' }, 409)
   }
 
-  const schoolSlug = profile.schools?.slug ?? 'school'
   const baseUsername = slugifyName(student.parent_name)
 
-  // Dedupe within the school: john.banda, john.banda2, john.banda3, ...
+  // Dedupe globally now (usernames are unique across the whole app,
+  // not just within a school) so the login email doesn't need to
+  // encode which school the parent belongs to: john.banda,
+  // john.banda2, john.banda3, ...
   let username = baseUsername
   let suffix = 1
   // eslint-disable-next-line no-constant-condition
@@ -135,7 +137,6 @@ Deno.serve(async (req: Request) => {
     const { data: existing } = await supabaseAdmin
       .from('parent_accounts')
       .select('id')
-      .eq('school_id', profile.school_id)
       .eq('username', username)
       .maybeSingle()
 
@@ -145,7 +146,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const temporaryPassword = generateTempPassword()
-  const syntheticEmail = `${username}@parents.${schoolSlug}.app`
+  const syntheticEmail = `${username}@parents.app`
 
   const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email: syntheticEmail,

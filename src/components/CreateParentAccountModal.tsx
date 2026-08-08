@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
-
-interface StudentOption {
-  id: string
-  full_name: string
-  admission_number: string
-  parent_name: string
-  parent_account_id: string | null
-  class_name: string
-}
+import { searchStudentsForPicker } from '../lib/queries'
+import { useDebouncedValue } from '../lib/useDebouncedValue'
 
 interface CreateParentAccountModalProps {
   onClose: () => void
@@ -16,79 +10,47 @@ interface CreateParentAccountModalProps {
 }
 
 export function CreateParentAccountModal({ onClose, onCreated }: CreateParentAccountModalProps) {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [students, setStudents] = useState<StudentOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [creatingId, setCreatingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const debouncedSearch = useDebouncedValue(search, 250)
   const [credentials, setCredentials] = useState<{
     studentName: string
     username: string
     temporaryPassword: string
+    schoolCode: string
   } | null>(null)
 
-  useEffect(() => {
-    supabase
-      .from('students')
-      .select('id, full_name, admission_number, parent_name, parent_account_id, classes ( name )')
-      .order('full_name')
-      .then(({ data, error: fetchError }) => {
-        if (!fetchError && data) {
-          const rows = data as unknown as Array<{
-            id: string
-            full_name: string
-            admission_number: string
-            parent_name: string
-            parent_account_id: string | null
-            classes: { name: string } | null
-          }>
-          setStudents(
-            rows.map((r) => ({
-              id: r.id,
-              full_name: r.full_name,
-              admission_number: r.admission_number,
-              parent_name: r.parent_name,
-              parent_account_id: r.parent_account_id,
-              class_name: r.classes?.name ?? 'Unassigned',
-            })),
-          )
-        }
-        setLoading(false)
-      })
-  }, [])
-
-  const filtered = students.filter((s) => {
-    const q = search.trim().toLowerCase()
-    if (q === '') return true
-    return (
-      s.full_name.toLowerCase().includes(q) ||
-      s.parent_name.toLowerCase().includes(q) ||
-      s.admission_number.toLowerCase().includes(q)
-    )
+  // Only ever fetches a capped, search-filtered slice of students —
+  // never the whole table — and is cached per search term so
+  // retyping the same query doesn't refire the request.
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ['student-picker', debouncedSearch],
+    queryFn: () => searchStudentsForPicker(debouncedSearch),
   })
 
-  async function handleCreate(studentId: string, studentName: string) {
-    setError(null)
-    setCreatingId(studentId)
-
-    const { data, error: invokeError } = await supabase.functions.invoke('create-parent-account', {
-      body: { student_id: studentId },
-    })
-
-    setCreatingId(null)
-
-    if (invokeError || !data || data.error) {
-      setError(data?.error ?? invokeError?.message ?? 'Could not create parent account.')
-      return
-    }
-
-    setCredentials({
-      studentName,
-      username: data.username,
-      temporaryPassword: data.temporary_password,
-    })
-    onCreated()
-  }
+  const createMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      const { data, error } = await supabase.functions.invoke('create-parent-account', {
+        body: { student_id: studentId },
+      })
+      if (error || !data || data.error) {
+        throw new Error(data?.error ?? error?.message ?? 'Could not create parent account.')
+      }
+      return data as { username: string; temporary_password: string; school_code: string }
+    },
+    onSuccess: (data, studentId) => {
+      const student = students.find((s) => s.id === studentId)
+      setCredentials({
+        studentName: student?.full_name ?? 'this student',
+        username: data.username,
+        temporaryPassword: data.temporary_password,
+        schoolCode: data.school_code,
+      })
+      queryClient.invalidateQueries({ queryKey: ['student-picker'] })
+      queryClient.invalidateQueries({ queryKey: ['students'] })
+      onCreated()
+    },
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -101,6 +63,9 @@ export function CreateParentAccountModal({ onClose, onCreated }: CreateParentAcc
               they'll be asked to change the password on first login.
             </p>
             <div className="mt-4 space-y-2 rounded-lg bg-gray-50 p-4 text-left text-sm">
+              <p>
+                <span className="font-medium text-gray-700">School Code:</span> {credentials.schoolCode}
+              </p>
               <p>
                 <span className="font-medium text-gray-700">Username:</span> {credentials.username}
               </p>
@@ -136,15 +101,19 @@ export function CreateParentAccountModal({ onClose, onCreated }: CreateParentAcc
               className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
             />
 
-            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            {createMutation.isError && (
+              <p className="mt-2 text-sm text-red-600">{(createMutation.error as Error).message}</p>
+            )}
 
             <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-gray-100">
-              {loading ? (
+              {isLoading ? (
                 <p className="p-4 text-sm text-gray-500">Loading students...</p>
-              ) : filtered.length === 0 ? (
-                <p className="p-4 text-sm text-gray-500">No students found.</p>
+              ) : students.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500">
+                  {search.trim() === '' ? 'Start typing to search for a student.' : 'No students found.'}
+                </p>
               ) : (
-                filtered.map((s) => (
+                students.map((s) => (
                   <div
                     key={s.id}
                     className="flex items-center justify-between border-b border-gray-100 px-4 py-3 last:border-b-0"
@@ -159,11 +128,13 @@ export function CreateParentAccountModal({ onClose, onCreated }: CreateParentAcc
                       <span className="text-xs text-gray-400">Already has an account</span>
                     ) : (
                       <button
-                        onClick={() => handleCreate(s.id, s.full_name)}
-                        disabled={creatingId === s.id}
+                        onClick={() => createMutation.mutate(s.id)}
+                        disabled={createMutation.isPending}
                         className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                       >
-                        {creatingId === s.id ? 'Creating...' : 'Create Account'}
+                        {createMutation.isPending && createMutation.variables === s.id
+                          ? 'Creating...'
+                          : 'Create Account'}
                       </button>
                     )}
                   </div>

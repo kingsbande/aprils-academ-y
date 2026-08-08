@@ -1,9 +1,11 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react'
-import { jsPDF } from 'jspdf'
+import { ChangeEvent, FormEvent, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
 import { uploadStudentPhoto } from '../lib/cloudinary'
+import { fetchClasses } from '../lib/queries'
+import { generateRegistrationConfirmationPdf } from '../lib/pdf'
 import { useAuth } from '../context/AuthContext'
-import { ClassRoom, NewStudentInput } from '../types'
+import { NewStudentInput } from '../types'
 
 function defaultAcademicYear() {
   return String(new Date().getFullYear())
@@ -34,12 +36,16 @@ const emptyForm: NewStudentInput = {
 }
 
 interface StudentRegistrationFormProps {
-  onRegistered: () => void
+  // Optional — the form invalidates the shared ['students'] query
+  // itself, so this fires even if Registration and Records live in
+  // separate sections/routes with no shared parent state.
+  onRegistered?: () => void
 }
 
-export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFormProps) {
+export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFormProps = {}) {
   const { profile } = useAuth()
-  const [classes, setClasses] = useState<ClassRoom[]>([])
+  const queryClient = useQueryClient()
+  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: fetchClasses })
   const [form, setForm] = useState<NewStudentInput>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,16 +55,53 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [stepError, setStepError] = useState<string | null>(null)
 
-  useEffect(() => {
-    supabase
-      .from('classes')
-      .select('id, name')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setClasses(data as ClassRoom[])
-      })
-  }, [])
+  function validateStepAt(index: number): string | null {
+    switch (index) {
+      case 0: {
+        if (!form.full_name?.trim()) return 'Please enter the student full name.'
+        if (!form.date_of_birth) return 'Please enter the student date of birth.'
+        if (!form.class_id) return 'Please select a class.'
+        if (!form.academic_year?.trim()) return 'Please enter the academic year.'
+        if (!form.date_joined) return 'Please enter the date joined.'
+        return null
+      }
+      case 1: {
+        if (!form.parent_name?.trim()) return 'Please enter the parent/guardian name.'
+        if (!form.parent_phone?.trim()) return 'Please enter the parent/guardian phone.'
+        return null
+      }
+      case 2: {
+        // optional fields; no required validation here
+        return null
+      }
+      case 3: {
+        if (!form.address?.trim()) return 'Please enter the full address.'
+        return null
+      }
+      default:
+        return null
+    }
+  }
+
+  function validateAll() {
+    for (let i = 0; i < TABS.length; i++) {
+      const msg = validateStepAt(i)
+      if (msg) return { stepIndex: i, message: msg }
+    }
+    return null
+  }
+
+  // Navigation guard removed during development — allow free tab clicks
+  const [step, setStep] = useState(0)
+
+  const TABS = [
+    { id: 'student', title: 'Student' },
+    { id: 'parents', title: 'Parent / Pickup' },
+    { id: 'school', title: 'School' },
+    { id: 'health', title: 'Health & Address' },
+  ]
 
   function updateField<K extends keyof NewStudentInput>(key: K, value: NewStudentInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -79,6 +122,15 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    setStepError(null)
+
+    const all = validateAll()
+    if (all) {
+      setStep(all.stepIndex)
+      setStepError(all.message)
+      return
+    }
+
     setSubmitting(true)
 
     if (!profile) {
@@ -143,42 +195,47 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
     setForm({ ...emptyForm, academic_year: defaultAcademicYear(), date_joined: defaultDateJoined() })
     setPhotoFile(null)
     setPhotoPreview(null)
-    onRegistered()
+    queryClient.invalidateQueries({ queryKey: ['students'] })
+    onRegistered?.()
   }
 
-  function downloadConfirmationPdf() {
+  async function downloadConfirmationPdf() {
     if (!confirmation) return
 
-    const schoolName = profile?.school_name ?? 'the school'
-    const doc = new jsPDF()
-
-    doc.setFontSize(16)
-    doc.text('Registration Confirmation', 20, 25)
-
-    doc.setFontSize(12)
-    const message = `Thank you for joining ${schoolName}, ${confirmation.studentName} has been registered successfully.`
-    const wrapped = doc.splitTextToSize(message, 170)
-    doc.text(wrapped, 20, 45)
-
-    doc.setFontSize(10)
-    doc.text(`Admission Number: ${confirmation.admissionNumber}`, 20, 70)
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 78)
-
-    doc.save(`${confirmation.studentName.replace(/\s+/g, '_')}_registration_confirmation.pdf`)
+    await generateRegistrationConfirmationPdf({
+      schoolName: profile?.school_name ?? 'the school',
+      logoUrl: profile?.school_logo_url ?? null,
+      studentName: confirmation.studentName,
+      admissionNumber: confirmation.admissionNumber,
+      registrationDate: new Date().toLocaleDateString(),
+      termsAndConditions: profile?.school_registration_terms ?? null,
+    })
   }
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-gray-200 bg-white p-6">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
         <h2 className="text-lg font-semibold text-gray-900">Register a Student</h2>
 
-        <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-          <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-gray-900">Student details</h3>
-            <p className="text-sm text-gray-600">Basic student information and class assignment.</p>
-          </div>
+        <div className="flex gap-2 border-b pb-3">
+          {TABS.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                setStep(i)
+                setStepError(null)
+              }}
+              className={`px-3 py-1 text-sm font-medium ${i === step ? 'border-b-2 border-rose-600 text-rose-600' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              {t.title}
+            </button>
+          ))}
+        </div>
 
-          <div className="mt-4 space-y-4">
+        {/* Step content */}
+        {step === 0 && (
+          <div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Student Photo</label>
               <div className="mt-1 flex items-center gap-4">
@@ -199,7 +256,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
               {uploadingPhoto && <p className="mt-1 text-xs text-gray-500">Uploading photo...</p>}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Full Name</label>
                 <input
@@ -263,79 +320,34 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Academic Year</label>
+                <input
+                  required
+                  value={form.academic_year}
+                  onChange={(e) => updateField('academic_year', e.target.value)}
+                  placeholder="2026"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Date Joined</label>
+                <input
+                  type="date"
+                  required
+                  value={form.date_joined}
+                  onChange={(e) => updateField('date_joined', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+                />
+              </div>
             </div>
           </div>
-        </section>
+        )}
 
-        <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-          <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-gray-900">Academic & enrollment</h3>
-            <p className="text-sm text-gray-600">Academic year, joining details, and optional school metadata.</p>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Academic Year</label>
-              <input
-                required
-                value={form.academic_year}
-                onChange={(e) => updateField('academic_year', e.target.value)}
-                placeholder="2026"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Date Joined</label>
-              <input
-                type="date"
-                required
-                value={form.date_joined}
-                onChange={(e) => updateField('date_joined', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Former School</label>
-              <input
-                value={form.former_school}
-                onChange={(e) => updateField('former_school', e.target.value)}
-                placeholder="Leave blank if none"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Government Code</label>
-              <input
-                value={form.government_code}
-                onChange={(e) => updateField('government_code', e.target.value)}
-                placeholder="Optional"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700">Sickness / Disease / Allergies</label>
-              <textarea
-                value={form.health_notes}
-                onChange={(e) => updateField('health_notes', e.target.value)}
-                rows={2}
-                placeholder="Leave blank if none"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-          <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-gray-900">Guardian & contact</h3>
-            <p className="text-sm text-gray-600">Parent details, pickup arrangements, and home location.</p>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {step === 1 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700">Parent/Guardian Name</label>
               <input
@@ -376,6 +388,30 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
               />
             </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Former School</label>
+              <input
+                value={form.former_school}
+                onChange={(e) => updateField('former_school', e.target.value)}
+                placeholder="Leave blank if none"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Government Code</label>
+              <input
+                value={form.government_code}
+                onChange={(e) => updateField('government_code', e.target.value)}
+                placeholder="Optional"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+              />
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Location (Village/Township)</label>
@@ -386,8 +422,10 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
               />
             </div>
           </div>
+        )}
 
-          <div className="mt-4 grid grid-cols-1 gap-4">
+        {step === 3 && (
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Full Address</label>
               <textarea
@@ -397,18 +435,66 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Sickness / Disease / Allergies
+              </label>
+              <textarea
+                value={form.health_notes}
+                onChange={(e) => updateField('health_notes', e.target.value)}
+                rows={2}
+                placeholder="Leave blank if none"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+              />
+            </div>
           </div>
-        </section>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={submitting || uploadingPhoto}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-        >
-          {submitting ? 'Registering...' : 'Register Student'}
-        </button>
+        <div className="flex items-center justify-end gap-3">
+            {stepError && <p className="text-sm text-red-600">{stepError}</p>}
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStep((s) => Math.max(s - 1, 0))
+                  setStepError(null)
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Back
+              </button>
+            )}
+
+            {step < TABS.length - 1 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const msg = validateStepAt(step)
+                  if (msg) {
+                    setStepError(msg)
+                    return
+                  }
+                  setStep((s) => Math.min(s + 1, TABS.length - 1))
+                  setStepError(null)
+                }}
+                disabled={uploadingPhoto || submitting}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={submitting || uploadingPhoto}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                {submitting ? 'Registering...' : 'Register Student'}
+              </button>
+            )}
+        </div>
       </form>
 
       {confirmation && (

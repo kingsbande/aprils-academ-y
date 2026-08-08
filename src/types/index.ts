@@ -6,6 +6,8 @@ export interface Profile {
   role: UserRole
   school_id: string
   school_name: string
+  school_logo_url: string | null
+  school_registration_terms: string | null
 }
 
 export interface ParentAccount {
@@ -17,6 +19,38 @@ export interface ParentAccount {
   is_active: boolean
   must_change_password: boolean
   created_at: string
+}
+
+export interface Subject {
+  id: string
+  name: string
+}
+
+export interface Term {
+  id: string
+  academic_year: string
+  name: string
+}
+
+export type AssessmentType = 'midterm' | 'end_of_term'
+
+export interface GradeScaleBand {
+  min_score: number
+  max_score: number
+  letter: string
+}
+
+export interface ProgressReportField {
+  id: string
+  label: string
+  sort_order: number
+}
+
+export interface GradeRelease {
+  id: string
+  class_id: string
+  term_id: string
+  released_at: string
 }
 
 export interface ClassRoom {
