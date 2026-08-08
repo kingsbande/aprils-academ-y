@@ -89,24 +89,26 @@ export function AdminDashboard() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Top bar */}
       <header className="border-b border-slate-800 bg-slate-900">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 lg:px-8">
-          <div className="flex items-center gap-3">
-            <img
-              src={logo}
-              alt="School logo"
-              className="h-9 w-9 rounded-full border border-white/10 object-cover"
-            />
-            <div className="leading-tight">
-              <p className="text-sm font-semibold text-white">
-                {profile?.school_name ?? 'School Portal'}
-              </p>
-              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-rose-400">
-                Admin Portal
-              </p>
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-3 sm:justify-start">
+            <div className="flex items-center gap-3">
+              <img
+                src={logo}
+                alt="School logo"
+                className="h-9 w-9 rounded-full border border-white/10 object-cover"
+              />
+              <div className="leading-tight">
+                <p className="text-sm font-semibold text-white">
+                  {profile?.school_name ?? 'School Portal'}
+                </p>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-rose-400">
+                  Admin Portal
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
             <button
               type="button"
               aria-label="Notifications"
@@ -115,7 +117,7 @@ export function AdminDashboard() {
               <Bell className="h-5 w-5" />
             </button>
 
-            <div className="h-6 w-px bg-white/10" />
+            <div className="hidden h-6 w-px bg-white/10 sm:block" />
 
             <div className="flex items-center gap-3">
               <span className="hidden text-sm text-slate-200 sm:inline">
@@ -128,23 +130,23 @@ export function AdminDashboard() {
 
             <button
               onClick={signOut}
-              className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm font-medium text-slate-200 transition hover:border-rose-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm font-medium text-slate-200 transition hover:border-rose-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
             >
               <LogOut className="h-4 w-4" />
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 items-start lg:flex-row lg:px-8">
+      <main className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-3 py-4 sm:gap-6 sm:px-4 lg:flex-row lg:px-8">
         {/* Sidebar */}
-        <aside className="w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:w-72">
-          <p className="px-2 pb-4 text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+        <aside className="w-full rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 lg:w-72">
+          <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 sm:pb-4">
             Menu
           </p>
 
-          <nav className="space-y-1">
+          <nav className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
             {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
               const isActive = activeView === id
               return (
@@ -152,7 +154,7 @@ export function AdminDashboard() {
                   key={id}
                   onClick={() => setActiveView(id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`group relative flex w-full items-center gap-3 rounded-xl py-2.5 pl-4 pr-3 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 ${
+                  className={`group relative flex min-h-11 flex-none items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:w-full lg:pl-4 lg:pr-3 ${
                     isActive
                       ? 'bg-rose-50 text-rose-700'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -173,11 +175,11 @@ export function AdminDashboard() {
           </nav>
         </aside>
 
-        <section className="flex-1 space-y-6">
+        <section className="flex-1 space-y-4 sm:space-y-6">
           {activeView === 'overview' && (
             <>
               {/* Hero */}
-              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-900 to-rose-900 p-6 text-white shadow-sm">
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-900 to-rose-900 p-4 text-white shadow-sm sm:p-6">
                 <svg
                   className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 text-white/10"
                   viewBox="0 0 200 200"
@@ -204,15 +206,15 @@ export function AdminDashboard() {
                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-rose-300">
                   {timeGreeting}
                 </p>
-                <h2 className="mt-2 text-2xl font-semibold">{profile?.full_name ?? 'Admin'}</h2>
-                <p className="relative mt-2 max-w-xl text-sm text-slate-300">
+                <h2 className="mt-2 text-xl font-semibold sm:text-2xl">{profile?.full_name ?? 'Admin'}</h2>
+                <p className="relative mt-2 max-w-xl text-sm text-slate-300 sm:text-base">
                   Manage registrations, review student records, and keep your school data up to
                   date in one place.
                 </p>
               </div>
 
               {/* Stats */}
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
@@ -277,7 +279,7 @@ export function AdminDashboard() {
               </div>
 
               {/* Quick actions */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Quick actions</h3>
@@ -285,29 +287,29 @@ export function AdminDashboard() {
                       Jump straight into registration or review the student list.
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
                     <button
                       onClick={() => setActiveView('register')}
-                      className="flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
                       <UserPlus className="h-4 w-4" />
                       Register student
                     </button>
                     <button
                       onClick={() => setActiveView('students')}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
                       View records
                     </button>
                     <button
                       onClick={() => setActiveView('parents')}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
                       Manage parents
                     </button>
                     <button
                       onClick={() => setActiveView('grades')}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
                       View grades
                     </button>
