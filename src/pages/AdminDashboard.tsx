@@ -5,6 +5,8 @@ import {
   BookOpen,
   LayoutDashboard,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -43,6 +45,7 @@ export function AdminDashboard() {
   const { profile, signOut } = useAuth()
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeView, setActiveView] = useState<View>('overview')
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     maleStudents: 0,
@@ -90,8 +93,21 @@ export function AdminDashboard() {
       {/* Top bar */}
       <header className="border-b border-slate-800 bg-slate-900">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-3 sm:justify-start">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-start">
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed((value) => !value)}
+                aria-label={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              >
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen className="h-4 w-4" />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4" />
+                )}
+              </button>
+
               <img
                 src={logo}
                 alt="School logo"
@@ -108,7 +124,7 @@ export function AdminDashboard() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <button
               type="button"
               aria-label="Notifications"
@@ -141,10 +157,21 @@ export function AdminDashboard() {
 
       <main className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-3 py-4 sm:gap-6 sm:px-4 lg:flex-row lg:px-8">
         {/* Sidebar */}
-        <aside className="w-full rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 lg:w-72">
-          <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 sm:pb-4">
-            Menu
-          </p>
+        <aside
+          className={`w-full rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 sm:p-4 lg:w-72 ${
+            isSidebarCollapsed ? 'lg:w-24' : 'lg:w-72'
+          }`}
+        >
+          <div className="flex items-center justify-between px-2 pb-3 sm:pb-4">
+            <p className={`text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 ${isSidebarCollapsed ? 'hidden lg:block' : ''}`}>
+              Menu
+            </p>
+            {!isSidebarCollapsed && (
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Quick links
+              </span>
+            )}
+          </div>
 
           <nav className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
             {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
@@ -154,7 +181,8 @@ export function AdminDashboard() {
                   key={id}
                   onClick={() => setActiveView(id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`group relative flex min-h-11 flex-none items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:w-full lg:pl-4 lg:pr-3 ${
+                  title={label}
+                  className={`group relative flex min-h-11 flex-none items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:w-full lg:justify-center lg:px-2 lg:py-3 ${
                     isActive
                       ? 'bg-rose-50 text-rose-700'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -168,7 +196,7 @@ export function AdminDashboard() {
                   <Icon
                     className={`h-4 w-4 ${isActive ? 'text-rose-600' : 'text-slate-400 group-hover:text-slate-500'}`}
                   />
-                  {label}
+                  <span className={`${isSidebarCollapsed ? 'hidden' : 'block'}`}>{label}</span>
                 </button>
               )
             })}
