@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BarChart3,
   Bell,
   BookOpen,
+  ChevronDown,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -49,11 +50,25 @@ export function AdminDashboard() {
   const [activeView, setActiveView] = useState<View>('overview')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     maleStudents: 0,
     femaleStudents: 0,
   })
+
+  // Close the profile dropdown when clicking outside of it
+  useEffect(() => {
+    if (!isProfileMenuOpen) return
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isProfileMenuOpen])
 
   useEffect(() => {
     supabase
@@ -123,78 +138,131 @@ export function AdminDashboard() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Top bar */}
       <header className="border-b border-slate-800 bg-slate-900">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-start">
-            <div className="flex items-center gap-3">
-              {/* Mobile: opens the off-canvas drawer */}
-              <button
-                type="button"
-                onClick={() => setIsMobileMenuOpen(true)}
-                aria-label="Open navigation menu"
-                aria-expanded={isMobileMenuOpen}
-                aria-controls="admin-sidebar"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
+          {/* Left cluster: nav triggers + logo. min-w-0 lets the text truncate instead of wrapping. */}
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Mobile: opens the off-canvas drawer */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open navigation menu"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="admin-sidebar"
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
 
-              {/* Desktop: collapses the static sidebar to icon-only */}
-              <button
-                type="button"
-                onClick={() => setIsSidebarCollapsed((value) => !value)}
-                aria-label={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-                className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:flex"
-              >
-                {isSidebarCollapsed ? (
-                  <PanelLeftOpen className="h-4 w-4" />
-                ) : (
-                  <PanelLeftClose className="h-4 w-4" />
-                )}
-              </button>
+            {/* Desktop: collapses the static sidebar to icon-only */}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((value) => !value)}
+              aria-label={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+              className="hidden h-10 w-10 flex-none items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 lg:flex"
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </button>
 
-              <img
-                src={logo}
-                alt="School logo"
-                className="h-9 w-9 rounded-full border border-white/10 object-cover"
-              />
-              <div className="leading-tight">
-                <p className="text-sm font-semibold text-white">
-                  {profile?.school_name ?? 'School Portal'}
-                </p>
-                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-rose-400">
-                  Admin Portal
-                </p>
-              </div>
+            <img
+              src={logo}
+              alt="School logo"
+              className="h-9 w-9 flex-none rounded-full border border-white/10 object-cover"
+            />
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-semibold text-white">
+                {profile?.school_name ?? 'School Portal'}
+              </p>
+              <p className="truncate text-[11px] font-medium uppercase tracking-[0.2em] text-rose-400">
+                Admin Portal
+              </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          {/* Right cluster stays on one line; below `sm` it collapses down to just the avatar */}
+          <div className="flex flex-none items-center gap-2 sm:gap-3">
+            {/* Full inline actions - shown when there's room */}
             <button
               type="button"
               aria-label="Notifications"
-              className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              className="hidden rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 sm:flex"
             >
               <Bell className="h-5 w-5" />
             </button>
 
             <div className="hidden h-6 w-px bg-white/10 sm:block" />
 
-            <div className="flex items-center gap-3">
-              <span className="hidden text-sm text-slate-200 sm:inline">
-                {profile?.full_name}
-              </span>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white">
-                {initials}
-              </div>
+            <span className="hidden text-sm text-slate-200 md:inline">{profile?.full_name}</span>
+
+            <div
+              aria-hidden="true"
+              className="hidden h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white sm:flex"
+            >
+              {initials}
             </div>
 
             <button
               onClick={signOut}
-              className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm font-medium text-slate-200 transition hover:border-rose-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              className="hidden min-h-10 items-center justify-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm font-medium text-slate-200 transition hover:border-rose-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 sm:flex"
             >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden lg:inline">Sign out</span>
             </button>
+
+            {/* Collapsed state: avatar becomes the trigger for notifications + sign out */}
+            <div className="relative sm:hidden" ref={profileMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen((value) => !value)}
+                aria-label="Open account menu"
+                aria-expanded={isProfileMenuOpen}
+                className="flex items-center gap-1 rounded-full p-1 transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white">
+                  {initials}
+                </div>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-300 transition-transform ${
+                    isProfileMenuOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {isProfileMenuOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl">
+                  <div className="border-b border-slate-100 px-4 py-2.5">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {profile?.full_name ?? 'Admin'}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {profile?.school_name ?? 'School Portal'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <Bell className="h-4 w-4 text-slate-400" />
+                    Notifications
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false)
+                      signOut()
+                    }}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
