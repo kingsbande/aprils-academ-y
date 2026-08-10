@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import logo from '../assets/logo.png'
 import { LoadingScreen } from '../components/LoadingScreen'
+import { InstallButton } from '../components/InstallButton'
+import { IosInstallHint } from '../components/IosInstallHint'
 
 // Parents sign in with just their username (no "@"), which maps to
 // this synthetic address created for them under the hood at
@@ -185,6 +187,9 @@ export function Login() {
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
+
+          <InstallButton />
+          <IosInstallHint />
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
