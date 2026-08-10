@@ -51,16 +51,33 @@ export function Login() {
   useEffect(() => {
     let cancelled = false
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) {
-        const destination = await resolveDestination(data.session.user.id)
-        if (destination && !cancelled) {
-          navigate(destination, { replace: true })
+    const checkSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+
+        if (cancelled) return
+
+        if (error) {
+          console.warn('Session check failed on login page:', error.message)
+          setCheckingSession(false)
           return
         }
+
+        if (data.session) {
+          const destination = await resolveDestination(data.session.user.id)
+          if (destination && !cancelled) {
+            navigate(destination, { replace: true })
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('Login session bootstrap failed:', err)
       }
+
       if (!cancelled) setCheckingSession(false)
-    })
+    }
+
+    void checkSession()
 
     return () => {
       cancelled = true

@@ -50,25 +50,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      if (data.session) {
-        loadProfile(data.session.user.id).finally(() => setLoading(false))
-      } else {
-        setLoading(false)
+    let isMounted = true
+
+    const finishLoading = () => {
+      if (isMounted) setLoading(false)
+    }
+
+    const startSessionCheck = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+
+        if (!isMounted) return
+
+        if (error) {
+          console.warn('Auth session check failed:', error.message)
+          finishLoading()
+          return
+        }
+
+        setSession(data.session)
+
+        if (data.session) {
+          await loadProfile(data.session.user.id)
+        }
+      } catch (err) {
+        console.warn('Auth bootstrap failed:', err)
+      } finally {
+        finishLoading()
       }
-    })
+    }
+
+    void startSessionCheck()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!isMounted) return
+
       setSession(newSession)
       if (newSession) {
-        loadProfile(newSession.user.id)
+        void loadProfile(newSession.user.id)
       } else {
         setProfile(null)
       }
     })
 
-    return () => listener.subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   async function signIn(email: string, password: string) {
