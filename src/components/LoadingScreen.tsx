@@ -5,7 +5,7 @@ export function LoadingScreen() {
   const { profile } = useAuth()
 
   return (
-    <div className="flex h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="relative flex h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-rose-200/20 blur-3xl" />

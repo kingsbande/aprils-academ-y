@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabaseClient'
 import { uploadStudentPhoto } from '../lib/cloudinary'
 import { fetchClasses } from '../lib/queries'
-import { generateRegistrationConfirmationPdf } from '../lib/pdf'
 import { useAuth } from '../context/AuthContext'
 import { NewStudentInput } from '../types'
 
@@ -55,53 +54,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [stepError, setStepError] = useState<string | null>(null)
-
-  function validateStepAt(index: number): string | null {
-    switch (index) {
-      case 0: {
-        if (!form.full_name?.trim()) return 'Please enter the student full name.'
-        if (!form.date_of_birth) return 'Please enter the student date of birth.'
-        if (!form.class_id) return 'Please select a class.'
-        if (!form.academic_year?.trim()) return 'Please enter the academic year.'
-        if (!form.date_joined) return 'Please enter the date joined.'
-        return null
-      }
-      case 1: {
-        if (!form.parent_name?.trim()) return 'Please enter the parent/guardian name.'
-        if (!form.parent_phone?.trim()) return 'Please enter the parent/guardian phone.'
-        return null
-      }
-      case 2: {
-        // optional fields; no required validation here
-        return null
-      }
-      case 3: {
-        if (!form.address?.trim()) return 'Please enter the full address.'
-        return null
-      }
-      default:
-        return null
-    }
-  }
-
-  function validateAll() {
-    for (let i = 0; i < TABS.length; i++) {
-      const msg = validateStepAt(i)
-      if (msg) return { stepIndex: i, message: msg }
-    }
-    return null
-  }
-
-  // Navigation guard removed during development — allow free tab clicks
-  const [step, setStep] = useState(0)
-
-  const TABS = [
-    { id: 'student', title: 'Student' },
-    { id: 'parents', title: 'Parent / Pickup' },
-    { id: 'school', title: 'School' },
-    { id: 'health', title: 'Health & Address' },
-  ]
+  const [generatingPdf, setGeneratingPdf] = useState(false)
 
   function updateField<K extends keyof NewStudentInput>(key: K, value: NewStudentInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -122,15 +75,6 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    setStepError(null)
-
-    const all = validateAll()
-    if (all) {
-      setStep(all.stepIndex)
-      setStepError(all.message)
-      return
-    }
-
     setSubmitting(true)
 
     if (!profile) {
@@ -202,306 +146,258 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   async function downloadConfirmationPdf() {
     if (!confirmation) return
 
-    await generateRegistrationConfirmationPdf({
-      schoolName: profile?.school_name ?? 'the school',
-      logoUrl: profile?.school_logo_url ?? null,
-      studentName: confirmation.studentName,
-      admissionNumber: confirmation.admissionNumber,
-      registrationDate: new Date().toLocaleDateString(),
-      termsAndConditions: profile?.school_registration_terms ?? null,
-    })
+    setGeneratingPdf(true)
+    try {
+      // Dynamically imported: jsPDF is only needed for this one
+      // action, so it shouldn't be part of the bundle every admin
+      // downloads just to load the registration form.
+      const { jsPDF } = await import('jspdf')
+
+      const schoolName = profile?.school_name ?? 'the school'
+      const doc = new jsPDF()
+
+      doc.setFontSize(16)
+      doc.text('Registration Confirmation', 20, 25)
+
+      doc.setFontSize(12)
+      const message = `Thank you for joining ${schoolName}, ${confirmation.studentName} has been registered successfully.`
+      const wrapped = doc.splitTextToSize(message, 170)
+      doc.text(wrapped, 20, 45)
+
+      doc.setFontSize(10)
+      doc.text(`Admission Number: ${confirmation.admissionNumber}`, 20, 70)
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 78)
+
+      doc.save(`${confirmation.studentName.replace(/\s+/g, '_')}_registration_confirmation.pdf`)
+    } finally {
+      setGeneratingPdf(false)
+    }
   }
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-gray-900">Register a Student</h2>
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-900">Register a Student</h2>
 
-        <div className="flex gap-2 border-b pb-3">
-          {TABS.map((t, i) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                setStep(i)
-                setStepError(null)
-              }}
-              className={`px-3 py-1 text-sm font-medium ${i === step ? 'border-b-2 border-rose-600 text-rose-600' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              {t.title}
-            </button>
-          ))}
+      <div>
+        <label className="block text-sm font-medium text-slate-700">Student Photo</label>
+        <div className="mt-1 flex items-center gap-4">
+          {photoPreview && (
+            <img
+              src={photoPreview}
+              alt="Preview"
+              className="h-16 w-16 rounded-full object-cover border border-slate-200"
+            />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
+            className="block text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-rose-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-rose-500"
+          />
+        </div>
+        {uploadingPhoto && <p className="mt-1 text-xs text-slate-500">Uploading photo...</p>}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Full Name</label>
+          <input
+            required
+            value={form.full_name}
+            onChange={(e) => updateField('full_name', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
         </div>
 
-        {/* Step content */}
-        {step === 0 && (
-          <div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Student Photo</label>
-              <div className="mt-1 flex items-center gap-4">
-                {photoPreview && (
-                  <img
-                    src={photoPreview}
-                    alt="Preview"
-                    className="h-16 w-16 rounded-full object-cover border border-gray-200"
-                  />
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="block text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800"
-                />
-              </div>
-              {uploadingPhoto && <p className="mt-1 text-xs text-gray-500">Uploading photo...</p>}
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Full Name</label>
-                <input
-                  required
-                  value={form.full_name}
-                  onChange={(e) => updateField('full_name', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
-                <input
-                  type="date"
-                  required
-                  value={form.date_of_birth}
-                  onChange={(e) => updateField('date_of_birth', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Age</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={25}
-                  value={form.age}
-                  onChange={(e) => updateField('age', e.target.value === '' ? '' : Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Gender</label>
-                <select
-                  value={form.gender}
-                  onChange={(e) => updateField('gender', e.target.value as 'male' | 'female')}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Class</label>
-                <select
-                  required
-                  value={form.class_id}
-                  onChange={(e) => updateField('class_id', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                >
-                  <option value="" disabled>
-                    Select a class
-                  </option>
-                  {classes.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Academic Year</label>
-                <input
-                  required
-                  value={form.academic_year}
-                  onChange={(e) => updateField('academic_year', e.target.value)}
-                  placeholder="2026"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Date Joined</label>
-                <input
-                  type="date"
-                  required
-                  value={form.date_joined}
-                  onChange={(e) => updateField('date_joined', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Parent/Guardian Name</label>
-              <input
-                required
-                value={form.parent_name}
-                onChange={(e) => updateField('parent_name', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Parent/Guardian Phone</label>
-              <input
-                required
-                type="tel"
-                placeholder="+265..."
-                value={form.parent_phone}
-                onChange={(e) => updateField('parent_phone', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Parent/Guardian Occupation</label>
-              <input
-                value={form.parent_occupation}
-                onChange={(e) => updateField('parent_occupation', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Authorized Pickup Person</label>
-              <input
-                value={form.pickup_person}
-                onChange={(e) => updateField('pickup_person', e.target.value)}
-                placeholder="If different from parent/guardian"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Former School</label>
-              <input
-                value={form.former_school}
-                onChange={(e) => updateField('former_school', e.target.value)}
-                placeholder="Leave blank if none"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Government Code</label>
-              <input
-                value={form.government_code}
-                onChange={(e) => updateField('government_code', e.target.value)}
-                placeholder="Optional"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Location (Village/Township)</label>
-              <input
-                value={form.location}
-                onChange={(e) => updateField('location', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Full Address</label>
-              <textarea
-                value={form.address}
-                onChange={(e) => updateField('address', e.target.value)}
-                rows={2}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Sickness / Disease / Allergies
-              </label>
-              <textarea
-                value={form.health_notes}
-                onChange={(e) => updateField('health_notes', e.target.value)}
-                rows={2}
-                placeholder="Leave blank if none"
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <div className="flex items-center justify-end gap-3">
-            {stepError && <p className="text-sm text-red-600">{stepError}</p>}
-            {step > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStep((s) => Math.max(s - 1, 0))
-                  setStepError(null)
-                }}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Back
-              </button>
-            )}
-
-            {step < TABS.length - 1 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const msg = validateStepAt(step)
-                  if (msg) {
-                    setStepError(msg)
-                    return
-                  }
-                  setStep((s) => Math.min(s + 1, TABS.length - 1))
-                  setStepError(null)
-                }}
-                disabled={uploadingPhoto || submitting}
-                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={submitting || uploadingPhoto}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {submitting ? 'Registering...' : 'Register Student'}
-              </button>
-            )}
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Date of Birth</label>
+          <input
+            type="date"
+            required
+            value={form.date_of_birth}
+            onChange={(e) => updateField('date_of_birth', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Age</label>
+          <input
+            type="number"
+            min={0}
+            max={25}
+            value={form.age}
+            onChange={(e) => updateField('age', e.target.value === '' ? '' : Number(e.target.value))}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Gender</label>
+          <select
+            value={form.gender}
+            onChange={(e) => updateField('gender', e.target.value as 'male' | 'female')}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          >
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Class</label>
+          <select
+            required
+            value={form.class_id}
+            onChange={(e) => updateField('class_id', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          >
+            <option value="" disabled>
+              Select a class
+            </option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Academic Year</label>
+          <input
+            required
+            value={form.academic_year}
+            onChange={(e) => updateField('academic_year', e.target.value)}
+            placeholder="2026"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Date Joined</label>
+          <input
+            type="date"
+            required
+            value={form.date_joined}
+            onChange={(e) => updateField('date_joined', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Former School</label>
+          <input
+            value={form.former_school}
+            onChange={(e) => updateField('former_school', e.target.value)}
+            placeholder="Leave blank if none"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Government Code</label>
+          <input
+            value={form.government_code}
+            onChange={(e) => updateField('government_code', e.target.value)}
+            placeholder="Optional"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Parent/Guardian Name</label>
+          <input
+            required
+            value={form.parent_name}
+            onChange={(e) => updateField('parent_name', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Parent/Guardian Phone</label>
+          <input
+            required
+            type="tel"
+            placeholder="+265..."
+            value={form.parent_phone}
+            onChange={(e) => updateField('parent_phone', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Parent/Guardian Occupation</label>
+          <input
+            value={form.parent_occupation}
+            onChange={(e) => updateField('parent_occupation', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Authorized Pickup Person</label>
+          <input
+            value={form.pickup_person}
+            onChange={(e) => updateField('pickup_person', e.target.value)}
+            placeholder="If different from parent/guardian"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Location (Village/Township)</label>
+          <input
+            value={form.location}
+            onChange={(e) => updateField('location', e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Full Address</label>
+          <textarea
+            value={form.address}
+            onChange={(e) => updateField('address', e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">
+            Sickness / Disease / Allergies
+          </label>
+          <textarea
+            value={form.health_notes}
+            onChange={(e) => updateField('health_notes', e.target.value)}
+            rows={2}
+            placeholder="Leave blank if none"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          />
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-rose-600">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={submitting || uploadingPhoto}
+        className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
+      >
+        {submitting ? 'Registering...' : 'Register Student'}
+      </button>
       </form>
 
       {confirmation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-900">Registration Successful</h3>
-            <p className="mt-3 text-sm text-gray-700">
+            <h3 className="text-lg font-semibold text-slate-900">Registration Successful</h3>
+            <p className="mt-3 text-sm text-slate-700">
               Thank you for joining {profile?.school_name ?? 'the school'},{' '}
               <span className="font-medium">{confirmation.studentName}</span> has been registered
               successfully.
@@ -510,13 +406,14 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
             <div className="mt-6 flex flex-col gap-2">
               <button
                 onClick={downloadConfirmationPdf}
-                className="rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                disabled={generatingPdf}
+                className="rounded-lg bg-rose-600 py-2 text-sm font-medium text-white hover:bg-rose-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-50"
               >
-                Download as PDF
+                {generatingPdf ? 'Preparing PDF...' : 'Download as PDF'}
               </button>
               <button
                 onClick={() => setConfirmation(null)}
-                className="rounded-lg border border-gray-300 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className="rounded-lg border border-slate-300 py-2 text-sm text-slate-700 hover:bg-slate-50"
               >
                 Close
               </button>
