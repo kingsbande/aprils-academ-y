@@ -34,8 +34,6 @@ function ParentLayout() {
 }
 
 export default function App() {
-  const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches
-
   return (
     <BrowserRouter>
       <AuthProvider>

@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'inline',
       manifest: {
         name: "April's Academy",
         short_name: 'April Academy',
@@ -35,6 +36,9 @@ export default defineConfig({
         background_color: '#0f172a',
         theme_color: '#0f172a',
         orientation: 'portrait-primary'
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}']
       }
     })
   ],
