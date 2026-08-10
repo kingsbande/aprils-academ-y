@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // main.tsx calls registerSW() explicitly — turn off the
+      // plugin's own auto-injected registration script so there's
+      // exactly one registration path, not two running in parallel.
+      injectRegister: false,
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
@@ -24,6 +28,12 @@ export default defineConfig({
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
           { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+      },
+      workbox: {
+        // SPA routes (e.g. /admin, /parent) must fall back to the
+        // app shell instead of 404ing once the service worker is
+        // controlling navigation requests.
+        navigateFallback: '/index.html',
       },
     }),
   ],
