@@ -8,6 +8,7 @@ export interface Profile {
   school_name: string
   school_logo_url: string | null
   school_registration_terms: string | null
+  avatar_url: string | null // NEW
 }
 
 export interface ParentAccount {

@@ -9,6 +9,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings as SettingsIcon,
   UserPlus,
   Users,
   X,
@@ -18,6 +19,7 @@ import { ParentAccounts } from '../pages/ParentAccounts'
 import { StudentRegistrationForm } from '../components/StudentRegistrationForm'
 import { StudentList } from '../components/StudentList'
 import { Grades } from '../pages/Grades'
+import { SettingsPage } from '../pages/Settings'
 import { supabase } from '../lib/supabaseClient'
 import logo from '../assets/logo.png'
 
@@ -27,7 +29,7 @@ interface DashboardStats {
   femaleStudents: number
 }
 
-type View = 'overview' | 'register' | 'students' | 'parents' | 'grades'
+type View = 'overview' | 'register' | 'students' | 'parents' | 'grades' | 'settings'
 
 const NAV_ITEMS: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -35,6 +37,7 @@ const NAV_ITEMS: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'students', label: 'Student Records', icon: BookOpen },
   { id: 'parents', label: 'Parent Accounts', icon: Users },
   { id: 'grades', label: 'Grades', icon: BarChart3 },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 function getInitials(name?: string | null) {
@@ -70,22 +73,29 @@ export function AdminDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isProfileMenuOpen])
 
+  // Count-only queries: zero student rows ever cross the network for
+  // this widget, just two numbers (head: true), fetched in parallel
+  // rather than pulling every student's { id, gender } to count
+  // client-side. Scales the same whether there are 20 students or
+  // 20,000.
   useEffect(() => {
-    supabase
-      .from('students')
-      .select('id, gender')
-      .then(({ data, error }) => {
-        if (!error && data) {
-          const male = data.filter((student) => student.gender === 'male').length
-          const female = data.filter((student) => student.gender === 'female').length
+    async function loadStats() {
+      const [totalResult, maleResult] = await Promise.all([
+        supabase.from('students').select('*', { count: 'exact', head: true }),
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('gender', 'male'),
+      ])
 
-          setStats({
-            totalStudents: data.length,
-            maleStudents: male,
-            femaleStudents: female,
-          })
-        }
+      const total = totalResult.count ?? 0
+      const male = maleResult.count ?? 0
+
+      setStats({
+        totalStudents: total,
+        maleStudents: male,
+        femaleStudents: total - male,
       })
+    }
+
+    loadStats()
   }, [refreshKey])
 
   // Lock body scroll while the off-canvas menu is open on mobile
@@ -197,12 +207,20 @@ export function AdminDashboard() {
 
             <span className="hidden text-sm text-slate-200 md:inline">{profile?.full_name}</span>
 
-            <div
-              aria-hidden="true"
-              className="hidden h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white sm:flex"
-            >
-              {initials}
-            </div>
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.full_name}
+                className="hidden h-9 w-9 rounded-full object-cover sm:flex"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="hidden h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white sm:flex"
+              >
+                {initials}
+              </div>
+            )}
 
             <button
               onClick={signOut}
@@ -221,9 +239,17 @@ export function AdminDashboard() {
                 aria-expanded={isProfileMenuOpen}
                 className="flex items-center gap-1 rounded-full p-1 transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white">
-                  {initials}
-                </div>
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.full_name}
+                    className="h-9 w-9 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-sm font-semibold text-white">
+                    {initials}
+                  </div>
+                )}
                 <ChevronDown
                   className={`h-4 w-4 text-slate-300 transition-transform ${
                     isProfileMenuOpen ? 'rotate-180' : ''
@@ -241,6 +267,17 @@ export function AdminDashboard() {
                       {profile?.school_name ?? 'School Portal'}
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileMenuOpen(false)
+                      handleNavSelect('settings')
+                    }}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <SettingsIcon className="h-4 w-4 text-slate-400" />
+                    Settings
+                  </button>
                   <button
                     type="button"
                     onClick={() => setIsProfileMenuOpen(false)}
@@ -498,6 +535,8 @@ export function AdminDashboard() {
           {activeView === 'parents' && <ParentAccounts />}
 
           {activeView === 'grades' && <Grades />}
+
+          {activeView === 'settings' && <SettingsPage />}
         </section>
       </main>
     </div>

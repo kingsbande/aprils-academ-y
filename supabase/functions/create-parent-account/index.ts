@@ -4,11 +4,13 @@
 //   1. Verifies the caller is an admin, and that the student belongs
 //      to the caller's own school (never lets an admin create an
 //      account using another school's student).
-//   2. Builds a username from the parent's name on that student's
-//      record (deduping against existing usernames in the school).
+//   2. Builds a username from the STUDENT's name (e.g. "Hope Bande"
+//      -> "hopebande"), deduping globally with a trailing number if
+//      taken (hopebande, hopebande2, hopebande3, ...). Usernames are
+//      globally unique across all schools, not just within one.
 //   3. Generates a temporary password.
 //   4. Creates the auth.users row via the admin API (email is a
-//      synthetic, never-emailed address — see migration 0006).
+//      synthetic, never-emailed address — username@parents.app).
 //   5. Inserts the parent_accounts row and links it to the student.
 //
 // Returns { username, temporary_password } so the admin can relay
@@ -25,10 +27,6 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-// Browsers send an OPTIONS preflight before the real POST because the
-// request carries custom headers (Authorization, apikey). Without
-// these headers on every response (including the preflight itself),
-// the browser blocks the request before it ever reaches this code.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -42,12 +40,14 @@ function json(body: unknown, status = 200) {
   })
 }
 
+// "Hope Bande" -> "hopebande" — lowercase, letters/numbers only, no
+// separators at all (not even the dots we used to use).
 function slugifyName(name: string): string {
   return name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, '.')
+    .replace(/\s+/g, '')
 }
 
 function generateTempPassword(): string {
@@ -73,12 +73,12 @@ async function getCallerAdminProfile(authHeader: string | null) {
 
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('school_id, role, schools ( slug )')
+    .select('school_id, role')
     .eq('id', user.id)
     .single()
 
   if (!profile || profile.role !== 'admin') return null
-  return profile as { school_id: string; role: string; schools: { slug: string } | null }
+  return profile as { school_id: string; role: string }
 }
 
 Deno.serve(async (req: Request) => {
@@ -124,12 +124,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'This student already has a linked parent account' }, 409)
   }
 
-  const baseUsername = slugifyName(student.parent_name)
+  const baseUsername = slugifyName(student.full_name)
 
-  // Dedupe globally now (usernames are unique across the whole app,
-  // not just within a school) so the login email doesn't need to
-  // encode which school the parent belongs to: john.banda,
-  // john.banda2, john.banda3, ...
+  // Dedupe globally (usernames are unique across the whole app, not
+  // just within a school): hopebande, hopebande2, hopebande3, ...
   let username = baseUsername
   let suffix = 1
   // eslint-disable-next-line no-constant-condition

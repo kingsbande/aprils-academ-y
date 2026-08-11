@@ -23,7 +23,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, school_id, schools ( name, logo_url, registration_terms )')
+      .select(
+        'id, full_name, role, school_id, avatar_url, schools ( name, logo_url, registration_terms )',
+      )
       .eq('id', userId)
       .single()
 
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: string
         role: Profile['role']
         school_id: string
+        avatar_url: string | null
         schools: { name: string; logo_url: string | null; registration_terms: string | null } | null
       }
       setProfile({
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         school_name: row.schools?.name ?? 'your school',
         school_logo_url: row.schools?.logo_url ?? null,
         school_registration_terms: row.schools?.registration_terms ?? null,
+        avatar_url: row.avatar_url,
       })
     } else {
       setProfile(null)
