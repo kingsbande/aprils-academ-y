@@ -304,7 +304,7 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-3 py-4 sm:gap-6 sm:px-4 lg:flex-row lg:px-8">
+      <main className="mx-auto flex max-w-7xl flex-col items-start gap-4 px-3 py-4 pb-20 sm:gap-6 sm:px-4 lg:flex-row lg:px-8">
         {/* Backdrop, mobile only */}
         {isMobileMenuOpen && (
           <div
@@ -418,8 +418,58 @@ export function AdminDashboard() {
                 </p>
               </div>
 
-              {/* Stats */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Mobile: compact enrollment card (single column) */}
+              <div className="sm:hidden">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">Enrollment</p>
+                      <p className="mt-1 text-3xl font-semibold text-slate-900">{stats.totalStudents}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 flex-none rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500">Male</p>
+                          <p className="text-sm font-semibold text-slate-900">{stats.maleStudents}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 flex-none rounded-md bg-slate-100 text-slate-600 flex items-center justify-center">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500">Female</p>
+                          <p className="text-sm font-semibold text-slate-900">{stats.femaleStudents}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {stats.totalStudents > 0 && (
+                    <div className="mt-4">
+                      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full bg-rose-500"
+                          style={{ width: `${malePct}%` }}
+                          aria-hidden="true"
+                        />
+                        <div
+                          className="h-full bg-slate-400"
+                          style={{ width: `${femalePct}%` }}
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">{malePct}% male · {femalePct}% female</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Desktop / tablet: three separate stat cards */}
+              <div className="hidden sm:grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
@@ -502,20 +552,23 @@ export function AdminDashboard() {
                     </button>
                     <button
                       onClick={() => setActiveView('students')}
-                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
+                      <BookOpen className="h-4 w-4 text-slate-600" />
                       View records
                     </button>
                     <button
                       onClick={() => setActiveView('parents')}
-                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
+                      <Users className="h-4 w-4 text-slate-600" />
                       Manage parents
                     </button>
                     <button
                       onClick={() => setActiveView('grades')}
-                      className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                     >
+                      <BarChart3 className="h-4 w-4 text-slate-600" />
                       View grades
                     </button>
                   </div>
@@ -523,6 +576,61 @@ export function AdminDashboard() {
               </div>
             </>
           )}
+          {/* Mobile bottom tab bar */}
+          <nav className="fixed bottom-3 left-1/2 z-50 w-[min(640px,96%)] -translate-x-1/2 rounded-2xl bg-white/95 px-3 py-2 shadow-lg lg:hidden">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => handleNavSelect('overview')}
+                aria-current={activeView === 'overview' ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs ${
+                  activeView === 'overview' ? 'text-rose-600' : 'text-slate-600'
+                }`}
+              >
+                <LayoutDashboard className="h-5 w-5" />
+                <span>Home</span>
+              </button>
+              <button
+                onClick={() => handleNavSelect('register')}
+                aria-current={activeView === 'register' ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs ${
+                  activeView === 'register' ? 'text-rose-600' : 'text-slate-600'
+                }`}
+              >
+                <UserPlus className="h-5 w-5" />
+                <span>Register</span>
+              </button>
+              <button
+                onClick={() => handleNavSelect('students')}
+                aria-current={activeView === 'students' ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs ${
+                  activeView === 'students' ? 'text-rose-600' : 'text-slate-600'
+                }`}
+              >
+                <BookOpen className="h-5 w-5" />
+                <span>Students</span>
+              </button>
+              <button
+                onClick={() => handleNavSelect('grades')}
+                aria-current={activeView === 'grades' ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs ${
+                  activeView === 'grades' ? 'text-rose-600' : 'text-slate-600'
+                }`}
+              >
+                <BarChart3 className="h-5 w-5" />
+                <span>Grades</span>
+              </button>
+              <button
+                onClick={() => handleNavSelect('parents')}
+                aria-current={activeView === 'parents' ? 'page' : undefined}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs ${
+                  activeView === 'parents' ? 'text-rose-600' : 'text-slate-600'
+                }`}
+              >
+                <Users className="h-5 w-5" />
+                <span>More</span>
+              </button>
+            </div>
+          </nav>
 
           {activeView === 'register' && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
