@@ -426,24 +426,28 @@ export function AdminDashboard() {
                       <p className="text-sm text-slate-500">Enrollment</p>
                       <p className="mt-1 text-3xl font-semibold text-slate-900">{stats.totalStudents}</p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 flex-none rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
-                          <Users className="h-4 w-4" />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 flex-none rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <Users className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Male</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs text-slate-500">Male</p>
-                          <p className="text-sm font-semibold text-slate-900">{stats.maleStudents}</p>
-                        </div>
+                        <p className="text-sm font-semibold text-slate-900">{stats.maleStudents}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 flex-none rounded-md bg-slate-100 text-slate-600 flex items-center justify-center">
-                          <Users className="h-4 w-4" />
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 flex-none rounded-md bg-slate-100 text-slate-600 flex items-center justify-center">
+                            <Users className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Female</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs text-slate-500">Female</p>
-                          <p className="text-sm font-semibold text-slate-900">{stats.femaleStudents}</p>
-                        </div>
+                        <p className="text-sm font-semibold text-slate-900">{stats.femaleStudents}</p>
                       </div>
                     </div>
                   </div>

@@ -6,6 +6,12 @@ import { fetchClasses } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { NewStudentInput } from '../types'
 
+const registrationSteps: Array<{ id: 'student' | 'parent' | 'details'; label: string }> = [
+  { id: 'student', label: 'Student' },
+  { id: 'parent', label: 'Parent' },
+  { id: 'details', label: 'Details' },
+]
+
 function defaultAcademicYear() {
   return String(new Date().getFullYear())
 }
@@ -55,6 +61,7 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [step, setStep] = useState<'student' | 'parent' | 'details'>('student')
 
   function updateField<K extends keyof NewStudentInput>(key: K, value: NewStudentInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -177,220 +184,284 @@ export function StudentRegistrationForm({ onRegistered }: StudentRegistrationFor
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Register a Student</h2>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Register a Student</h2>
+              <p className="text-sm text-slate-500">Complete the form one step at a time.</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs text-slate-500">
+              Step {registrationSteps.findIndex((item) => item.id === step) + 1} of {registrationSteps.length}
+            </div>
+          </div>
 
-      <div>
-        <label className="block text-sm font-medium text-slate-700">Student Photo</label>
-        <div className="mt-1 flex items-center gap-4">
-          {photoPreview && (
-            <img
-              src={photoPreview}
-              alt="Preview"
-              className="h-16 w-16 rounded-full object-cover border border-slate-200"
-            />
-          )}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handlePhotoChange}
-            className="block text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-rose-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-rose-500"
-          />
-        </div>
-        {uploadingPhoto && <p className="mt-1 text-xs text-slate-500">Uploading photo...</p>}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Full Name</label>
-          <input
-            required
-            value={form.full_name}
-            onChange={(e) => updateField('full_name', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Date of Birth</label>
-          <input
-            type="date"
-            required
-            value={form.date_of_birth}
-            onChange={(e) => updateField('date_of_birth', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
+          <div className="grid grid-cols-3 gap-2">
+            {registrationSteps.map((item) => {
+              const isActive = item.id === step
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => setStep(item.id)}
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                    isActive
+                      ? 'border-rose-500 bg-rose-50 text-rose-700'
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Age</label>
-          <input
-            type="number"
-            min={0}
-            max={25}
-            value={form.age}
-            onChange={(e) => updateField('age', e.target.value === '' ? '' : Number(e.target.value))}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
+        <div className="space-y-4">
+          <div className={step !== 'student' ? 'hidden' : 'space-y-4'}>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Student Photo</label>
+              <div className="mt-1 flex items-center gap-4">
+                {photoPreview && (
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="h-16 w-16 rounded-full object-cover border border-slate-200"
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="block text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-rose-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-rose-500"
+                />
+              </div>
+              {uploadingPhoto && <p className="mt-1 text-xs text-slate-500">Uploading photo...</p>}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Full Name</label>
+                <input
+                  required
+                  value={form.full_name}
+                  onChange={(e) => updateField('full_name', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Date of Birth</label>
+                <input
+                  type="date"
+                  required
+                  value={form.date_of_birth}
+                  onChange={(e) => updateField('date_of_birth', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Age</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={25}
+                  value={form.age}
+                  onChange={(e) => updateField('age', e.target.value === '' ? '' : Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Gender</label>
+                <select
+                  value={form.gender}
+                  onChange={(e) => updateField('gender', e.target.value as 'male' | 'female')}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Class</label>
+                <select
+                  required
+                  value={form.class_id}
+                  onChange={(e) => updateField('class_id', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                >
+                  <option value="" disabled>
+                    Select a class
+                  </option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Academic Year</label>
+                <input
+                  required
+                  value={form.academic_year}
+                  onChange={(e) => updateField('academic_year', e.target.value)}
+                  placeholder="2026"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Date Joined</label>
+                <input
+                  type="date"
+                  required
+                  value={form.date_joined}
+                  onChange={(e) => updateField('date_joined', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className={step !== 'parent' ? 'hidden' : 'space-y-4'}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Parent/Guardian Name</label>
+                <input
+                  required
+                  value={form.parent_name}
+                  onChange={(e) => updateField('parent_name', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Parent/Guardian Phone</label>
+                <input
+                  required
+                  type="tel"
+                  placeholder="+265..."
+                  value={form.parent_phone}
+                  onChange={(e) => updateField('parent_phone', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Parent/Guardian Occupation</label>
+                <input
+                  value={form.parent_occupation}
+                  onChange={(e) => updateField('parent_occupation', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Authorized Pickup Person</label>
+                <input
+                  value={form.pickup_person}
+                  onChange={(e) => updateField('pickup_person', e.target.value)}
+                  placeholder="If different from parent/guardian"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className={step !== 'details' ? 'hidden' : 'space-y-4'}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Location (Village/Township)</label>
+                <input
+                  value={form.location}
+                  onChange={(e) => updateField('location', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Former School</label>
+                <input
+                  value={form.former_school}
+                  onChange={(e) => updateField('former_school', e.target.value)}
+                  placeholder="Leave blank if none"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Government Code</label>
+                <input
+                  value={form.government_code}
+                  onChange={(e) => updateField('government_code', e.target.value)}
+                  placeholder="Optional"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Full Address</label>
+                <textarea
+                  value={form.address}
+                  onChange={(e) => updateField('address', e.target.value)}
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  Sickness / Disease / Allergies
+                </label>
+                <textarea
+                  value={form.health_notes}
+                  onChange={(e) => updateField('health_notes', e.target.value)}
+                  rows={2}
+                  placeholder="Leave blank if none"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Gender</label>
-          <select
-            value={form.gender}
-            onChange={(e) => updateField('gender', e.target.value as 'male' | 'female')}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+
+        <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={() => setStep((prev) => (prev === 'student' ? 'student' : prev === 'parent' ? 'student' : 'parent'))}
+            disabled={step === 'student'}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
+            Back
+          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {step !== 'details' ? (
+              <button
+                type="button"
+                onClick={() => setStep((prev) => (prev === 'student' ? 'parent' : 'details'))}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-500"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={submitting || uploadingPhoto}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-500 disabled:opacity-50"
+              >
+                {submitting ? 'Registering...' : 'Register Student'}
+              </button>
+            )}
+          </div>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Class</label>
-          <select
-            required
-            value={form.class_id}
-            onChange={(e) => updateField('class_id', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          >
-            <option value="" disabled>
-              Select a class
-            </option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Academic Year</label>
-          <input
-            required
-            value={form.academic_year}
-            onChange={(e) => updateField('academic_year', e.target.value)}
-            placeholder="2026"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Date Joined</label>
-          <input
-            type="date"
-            required
-            value={form.date_joined}
-            onChange={(e) => updateField('date_joined', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Former School</label>
-          <input
-            value={form.former_school}
-            onChange={(e) => updateField('former_school', e.target.value)}
-            placeholder="Leave blank if none"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Government Code</label>
-          <input
-            value={form.government_code}
-            onChange={(e) => updateField('government_code', e.target.value)}
-            placeholder="Optional"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Parent/Guardian Name</label>
-          <input
-            required
-            value={form.parent_name}
-            onChange={(e) => updateField('parent_name', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Parent/Guardian Phone</label>
-          <input
-            required
-            type="tel"
-            placeholder="+265..."
-            value={form.parent_phone}
-            onChange={(e) => updateField('parent_phone', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Parent/Guardian Occupation</label>
-          <input
-            value={form.parent_occupation}
-            onChange={(e) => updateField('parent_occupation', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Authorized Pickup Person</label>
-          <input
-            value={form.pickup_person}
-            onChange={(e) => updateField('pickup_person', e.target.value)}
-            placeholder="If different from parent/guardian"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Location (Village/Township)</label>
-          <input
-            value={form.location}
-            onChange={(e) => updateField('location', e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Full Address</label>
-          <textarea
-            value={form.address}
-            onChange={(e) => updateField('address', e.target.value)}
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">
-            Sickness / Disease / Allergies
-          </label>
-          <textarea
-            value={form.health_notes}
-            onChange={(e) => updateField('health_notes', e.target.value)}
-            rows={2}
-            placeholder="Leave blank if none"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
-          />
-        </div>
-      </div>
-
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-
-      <button
-        type="submit"
-        disabled={submitting || uploadingPhoto}
-        className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
-      >
-        {submitting ? 'Registering...' : 'Register Student'}
-      </button>
       </form>
 
       {confirmation && (
