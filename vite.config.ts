@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     legacy({
       targets: ['chrome >= 60', 'android >= 6', 'defaults', 'not IE 11'],
+      modernTargets: ['chrome >= 60', 'android >= 6'],
       additionalLegacyPolyfills: ['regenerator-runtime/runtime']
     }),
     VitePWA({
