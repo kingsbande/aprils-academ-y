@@ -44,6 +44,7 @@ export default defineConfig({
         orientation: 'portrait-primary'
       },
       workbox: {
+        cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}']
       }
     })
