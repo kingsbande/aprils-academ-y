@@ -16,7 +16,7 @@ export default defineConfig({
       injectRegister: 'inline',
       manifest: {
         name: "April's Academy",
-        short_name: 'April Academy',
+        short_name: "April's Academy",
         description: 'Student registration and parent dashboard',
         icons: [
           {
@@ -45,7 +45,21 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}']
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 5
+              },
+              networkTimeoutSeconds: 5
+            }
+          }
+        ]
       }
     })
   ],

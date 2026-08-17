@@ -271,7 +271,7 @@ export function EnterGradesTab() {
             <p className="text-sm text-gray-500">Choose a class and term to load the progress sheet.</p>
           ) : progressFields.length === 0 ? (
             <p className="text-sm text-gray-500">
-              No progress report fields set up yet — add some under the Setup tab first.
+              No progress report fields set up yet — add some under the School Setup tab in Settings first.
             </p>
           ) : progressGridQuery.isLoading ? (
             <p className="text-sm text-gray-500">Loading students...</p>

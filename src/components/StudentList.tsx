@@ -1,25 +1,46 @@
 import { Fragment, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { supabase } from '../lib/supabaseClient'
-import { fetchClasses, fetchStudentsPage, PAGE_SIZE } from '../lib/queries'
+import { useAuth } from '../context/AuthContext'
+import { fetchClasses, fetchStudentsPage, changeStudentStatus, hardDeleteStudent, PAGE_SIZE } from '../lib/queries'
 import { useDebouncedValue } from '../lib/useDebouncedValue'
-import { Student } from '../types'
+import { Student, StudentStatus } from '../types'
 import { SearchBar } from './SearchBar'
 import { EditStudentForm } from './EditStudentForm'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Pagination } from './Pagination'
 
+const STATUS_LABELS: Record<StudentStatus, string> = {
+  active: 'Active',
+  withdrawn: 'Withdrawn',
+  graduated: 'Graduated',
+  transferred: 'Transferred',
+}
+
+const STATUS_BADGE_STYLES: Record<StudentStatus, string> = {
+  active: 'bg-green-50 text-green-700 border-green-200',
+  withdrawn: 'bg-amber-50 text-amber-700 border-amber-200',
+  graduated: 'bg-blue-50 text-blue-700 border-blue-200',
+  transferred: 'bg-slate-100 text-slate-600 border-slate-200',
+}
+
 export function StudentList() {
   const queryClient = useQueryClient()
+  const { profile } = useAuth()
+  const canEditStudents = profile?.role !== 'headteacher'
 
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const [selectedClassId, setSelectedClassId] = useState<string>('all')
   const [dateJoinedFilter, setDateJoinedFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StudentStatus | 'all'>('active')
   const [page, setPage] = useState(0)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Student | null>(null)
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    student: Student
+    newStatus: StudentStatus
+  } | null>(null)
+  const [pendingHardDelete, setPendingHardDelete] = useState<Student | null>(null)
 
   // Shared cache entry — Registration form, Edit form, and this list
   // all read the same ['classes'] query instead of each fetching
@@ -33,18 +54,15 @@ export function StudentList() {
   // useQuery calls, not a waterfall) and only ever pulls the current
   // page's rows — filtering, search, and the total count all happen
   // server-side.
-  const {
-    data,
-    isLoading,
-    isFetching,
-  } = useQuery({
-    queryKey: ['students', page, debouncedSearch, selectedClassId, dateJoinedFilter],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['students', page, debouncedSearch, selectedClassId, dateJoinedFilter, statusFilter],
     queryFn: () =>
       fetchStudentsPage({
         page,
         search: debouncedSearch,
         classId: selectedClassId,
         dateJoinedFrom: dateJoinedFilter,
+        status: statusFilter,
       }),
     placeholderData: (previousData) => previousData, // keep old rows visible while the next page loads
   })
@@ -52,14 +70,27 @@ export function StudentList() {
   const students = data?.students ?? []
   const total = data?.total ?? 0
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('students').delete().eq('id', id)
-      if (error) throw error
-    },
+  const statusChangeMutation = useMutation({
+    mutationFn: (params: { student: Student; newStatus: StudentStatus }) =>
+      changeStudentStatus({
+        studentId: params.student.id,
+        schoolId: profile!.school_id,
+        oldStatus: params.student.status,
+        newStatus: params.newStatus,
+        changedBy: profile!.id,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] })
-      setPendingDelete(null)
+      setPendingStatusChange(null)
+    },
+  })
+
+  const hardDeleteMutation = useMutation({
+    mutationFn: (id: string) => hardDeleteStudent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] })
+      setPendingHardDelete(null)
+      setExpandedId(null)
     },
   })
 
@@ -93,6 +124,20 @@ export function StudentList() {
                 {c.name}
               </option>
             ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as StudentStatus | 'all')
+              resetToFirstPage()
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40"
+          >
+            <option value="active">Active</option>
+            <option value="withdrawn">Withdrawn</option>
+            <option value="graduated">Graduated</option>
+            <option value="transferred">Transferred</option>
+            <option value="all">All statuses</option>
           </select>
           <input
             type="date"
@@ -138,6 +183,7 @@ export function StudentList() {
                   <th className="py-2 pr-4">Parent Phone</th>
                   <th className="py-2 pr-4">Year</th>
                   <th className="py-2 pr-4">Joined</th>
+                  <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4"></th>
                 </tr>
               </thead>
@@ -168,6 +214,22 @@ export function StudentList() {
                       <td className="py-2 pr-4">{s.academic_year}</td>
                       <td className="py-2 pr-4">{s.date_joined}</td>
                       <td className="py-2 pr-4">
+                        <select
+                          value={s.status}
+                          disabled={!canEditStudents}
+                          onChange={(e) =>
+                            setPendingStatusChange({ student: s, newStatus: e.target.value as StudentStatus })
+                          }
+                          className={`rounded-full border px-2 py-1 text-xs font-medium focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 ${STATUS_BADGE_STYLES[s.status]}`}
+                        >
+                          {(Object.keys(STATUS_LABELS) as StudentStatus[]).map((st) => (
+                            <option key={st} value={st}>
+                              {STATUS_LABELS[st]}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-4">
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
@@ -178,27 +240,23 @@ export function StudentList() {
                           >
                             {expandedId === s.id ? 'Hide' : 'Details'}
                           </button>
-                          <button
-                            onClick={() => {
-                              setEditingId(editingId === s.id ? null : s.id)
-                              setExpandedId(null)
-                            }}
-                            className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
-                          >
-                            {editingId === s.id ? 'Cancel' : 'Edit'}
-                          </button>
-                          <button
-                            onClick={() => setPendingDelete(s)}
-                            className="text-xs font-medium text-rose-600 underline hover:text-rose-700"
-                          >
-                            Delete
-                          </button>
+                          {canEditStudents && (
+                            <button
+                              onClick={() => {
+                                setEditingId(editingId === s.id ? null : s.id)
+                                setExpandedId(null)
+                              }}
+                              className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
+                            >
+                              {editingId === s.id ? 'Cancel' : 'Edit'}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
                     {editingId === s.id && (
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        <td colSpan={11} className="px-4 py-3">
+                        <td colSpan={12} className="px-4 py-3">
                           <EditStudentForm
                             student={s}
                             classes={classes}
@@ -213,7 +271,7 @@ export function StudentList() {
                     )}
                     {expandedId === s.id && (
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        <td colSpan={11} className="px-4 py-3">
+                        <td colSpan={12} className="px-4 py-3">
                           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-xs text-slate-700 sm:grid-cols-3">
                             <div>
                               <dt className="font-medium text-slate-500">Government Code</dt>
@@ -245,7 +303,27 @@ export function StudentList() {
                               </dt>
                               <dd>{s.health_notes || '—'}</dd>
                             </div>
+                            <div>
+                              <dt className="font-medium text-slate-500">Status Since</dt>
+                              <dd>{new Date(s.status_changed_at).toLocaleDateString()}</dd>
+                            </div>
                           </dl>
+
+                          {canEditStudents && (
+                            <div className="mt-4 border-t border-slate-200 pt-3">
+                              <p className="text-xs text-slate-400">
+                                Only use this for a genuine duplicate entry — it permanently erases this
+                                student's grades, progress reports, and notification history. For a
+                                student who has left, use the Status dropdown above instead.
+                              </p>
+                              <button
+                                onClick={() => setPendingHardDelete(s)}
+                                className="mt-2 text-xs font-medium text-red-700 underline hover:text-red-900"
+                              >
+                                Permanently Delete (duplicate entry)
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -259,13 +337,24 @@ export function StudentList() {
         </div>
       )}
 
-      {pendingDelete && (
+      {pendingStatusChange && (
         <ConfirmDialog
-          title="Delete Student"
-          message={`Delete ${pendingDelete.full_name}'s record? This cannot be undone.`}
-          confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-          onCancel={() => setPendingDelete(null)}
-          onConfirm={() => deleteMutation.mutate(pendingDelete.id)}
+          title="Change Student Status"
+          message={`Change ${pendingStatusChange.student.full_name}'s status to "${STATUS_LABELS[pendingStatusChange.newStatus]}"?`}
+          confirmLabel={statusChangeMutation.isPending ? 'Saving...' : 'Confirm'}
+          danger={pendingStatusChange.newStatus !== 'active'}
+          onCancel={() => setPendingStatusChange(null)}
+          onConfirm={() => statusChangeMutation.mutate(pendingStatusChange)}
+        />
+      )}
+
+      {pendingHardDelete && (
+        <ConfirmDialog
+          title="Permanently Delete Student"
+          message={`This permanently deletes ${pendingHardDelete.full_name}'s entire record — including all grades, progress reports, and notification history. This cannot be undone. Only proceed if this is a duplicate entry.`}
+          confirmLabel={hardDeleteMutation.isPending ? 'Deleting...' : 'Permanently Delete'}
+          onCancel={() => setPendingHardDelete(null)}
+          onConfirm={() => hardDeleteMutation.mutate(pendingHardDelete.id)}
         />
       )}
     </div>

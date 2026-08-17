@@ -1,23 +1,26 @@
 import { FormEvent, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
-import { useParentAuth } from '../../context/ParentAuthContext'
+import { useAuth } from '../../context/AuthContext'
 import logo from '../../assets/logo.png'
 
-export function ForceChangePassword() {
-  const { session, parentProfile, loading, refreshParentProfile } = useParentAuth()
+export function ForceChangePasswordStaff() {
+  const { session, profile, loading, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (!loading && (!session || !parentProfile)) {
-    return <Navigate to="/parent/login" replace />
+  if (!loading && (!session || !profile)) {
+    return <Navigate to="/login" replace />
   }
 
-  if (!loading && parentProfile && !parentProfile.must_change_password) {
-    return <Navigate to="/parent" replace />
+  // Already changed it (e.g. navigated here directly) — bounce
+  // through /login rather than assuming /admin, since the right
+  // destination now depends on role.
+  if (!loading && profile && !profile.must_change_password) {
+    return <Navigate to="/login" replace />
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -43,7 +46,7 @@ export function ForceChangePassword() {
     }
 
     const { error: confirmError } = await supabase.functions.invoke(
-      'confirm-parent-password-changed',
+      'confirm-staff-password-changed',
       { body: {} },
     )
 
@@ -54,8 +57,10 @@ export function ForceChangePassword() {
       return
     }
 
-    await refreshParentProfile()
-    navigate('/parent')
+    await refreshProfile()
+    // /login's own session check resolves role -> the correct
+    // dashboard (/admin, /headteacher, or /teacher) automatically.
+    navigate('/login')
   }
 
   return (
@@ -94,7 +99,7 @@ export function ForceChangePassword() {
           </div>
 
           <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-rose-400">
-            Parent Portal
+            Staff Portal
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-white">Set a New Password</h1>
           <p className="mt-1 text-sm text-slate-300">
